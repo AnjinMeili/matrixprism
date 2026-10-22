@@ -3,8 +3,9 @@
 Instructions for an AI coding agent working in this repository, MatrixPrism.
 It has two parts: the composer in `composer/` (a browser app and Node
 server that compose and stream the picture) and the receiver in `receiver/`
-(`matrix-dmx` and `scene-tool`, C++, for the Raspberry Pi). `CLAUDE.md`
-imports this file, so Claude Code loads it at the start of every session.
+(`matrix-dmx` and `scene-tool`, C++, for the Raspberry Pi). The composer
+streams DDP to any receiver, WLED as well as `matrix-dmx`, so docs should
+not assume the receiver is a Pi. `CLAUDE.md` imports this file, so Claude Code loads it at the start of every session.
 
 Anjin's checkout also has `notes/`, private development notes left
 out of the public repository; when `notes/AGENTS.private.md` exists,
@@ -205,8 +206,8 @@ make -C receiver test         # receiver protocol, recording, scene tool
   panel's brightness, the beat), measure it with the tools here, or build one
   (put it in `composer/tools/` beside the others), and report figures with
   what they do and do not cover.
-- Whether a receiver is up can be checked without logging in to the Pi:
-  `curl http://<receiver>/json/info`.
+- Whether a receiver, WLED or `matrix-dmx`, is up can be checked without
+  logging in to it: `curl http://<receiver>/json/info`.
 - Compositing and timing rules are kept in pure modules with a JavaScript
   reference beside the GLSL (`mixer.js`, `shape.js`, `tempo.js`). Change the
   two together and test the reference.

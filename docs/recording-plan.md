@@ -13,7 +13,7 @@ fidelity, and Safari.
 
 Save the final composed preview with the actual audio feeding its analysis,
 compressed for sharing and feedback. The selected receiver supplies the
-dimensions only. Recording must work without DDP sending or a reachable Pi,
+dimensions only. Recording must work without DDP sending or a reachable receiver,
 and must not inherit a receiver's sending limit or network losses.
 
 - Capture the final main composition, including transitions, sparkles,
@@ -37,7 +37,7 @@ and must not inherit a receiver's sending limit or network losses.
 Capture in the composer; encode and write in a small local media service
 using FFmpeg. Keep capture, timestamped transport, encoder and destination
 separate. The service may be a local worker process managed by the Node
-server; this does not require a new network daemon or Pi application.
+server; this does not require a new network daemon or receiver application.
 
 Browser-only MediaRecorder is a useful prototype or transport candidate, not
 an assumed solution: codec support, timestamp behaviour, chunk delivery and

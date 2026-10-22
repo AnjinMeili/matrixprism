@@ -34,7 +34,8 @@ the measurements behind it are in [findings.md](findings.md).
 - A Monitor view with the beat graph and a live Camelot key wheel.
 - Playlists of saved looks, Hotsave, a randomizer with its own timers for
   each input, clock, date and text overlays.
-- Settings kept for each receiver, and a list of receivers found by mDNS.
+- Streaming DDP to WLED, to `matrix-dmx` or to any other DDP receiver;
+  settings kept for each receiver, and a list of receivers found by mDNS.
 - Recording the final preview with the live audio to an MP4 (Chrome and
   FFmpeg).
 

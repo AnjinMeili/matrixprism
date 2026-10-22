@@ -4,23 +4,53 @@ A real-time composer of music-driven generative visuals for LED panels.
 
 MatrixPrism follows the beat, tempo, key, spectrum and section changes of
 live audio in a browser, renders patterns from them, and streams the result
-as standard DDP to a Raspberry Pi that drives an RGB LED matrix.
+as standard DDP to an LED receiver: a [WLED](https://kno.wled.ge/) controller,
+MatrixPrism's own receiver `matrix-dmx` on a Raspberry Pi, or anything else
+that takes DDP.
 
 ```
-audio input ─► browser page ──WebSocket──► Node server ──UDP (DDP)──► matrix-dmx on the Pi ─► LED matrix
-               (analyse, render)           (split into packets)       (display, record, play back)
+audio input ─► browser page ──WebSocket──► Node server ──UDP (DDP)──► DDP receiver ─► LED panel
+               (analyse, render)           (split into packets)       (WLED, matrix-dmx, …)
 ```
 
 It has two parts, each in its own directory:
 
 | Part | Directory | What it is |
 |------|-----------|------------|
-| **Composer** | [`composer/`](composer) | A local app for a Mac or PC. A browser page analyses audio and renders the patterns; a small Node server sends each frame to the matrix as DDP. See [composer/README.md](composer/README.md) |
-| **Receiver** | [`receiver/`](receiver) | `matrix-dmx`, which runs on the Pi and displays Art-Net, sACN and DDP pixel data from any sender on the matrix, and records and plays back what it displays; and `scene-tool`, which edits those recordings. See [receiver/README.md](receiver/README.md) |
+| **Composer** | [`composer/`](composer) | A local app for a Mac or PC. A browser page analyses audio and renders the patterns; a small Node server sends each frame to the receiver as DDP. See [composer/README.md](composer/README.md) |
+| **Receiver** | [`receiver/`](receiver) | Optional. `matrix-dmx`, which runs on a Raspberry Pi and displays Art-Net, sACN and DDP pixel data from any sender on the matrix, and records and plays back what it displays; and `scene-tool`, which edits those recordings. See [receiver/README.md](receiver/README.md) |
+
+## Receivers
+
+The composer streams to any receiver that takes DDP on UDP port 4048:
+
+- **WLED.** A WLED controller with its LEDs set up as a 2D matrix needs
+  nothing installed. The composer finds it on the network, reads its size
+  and streams to it. It has been tested with WLED 16 and 17 only: panels of
+  32×32 (WLED 16) and 128×64 (WLED 17, on an Adafruit Matrix Portal S3).
+- **`matrix-dmx`**, in [`receiver/`](receiver), for HUB75 panels on a
+  Raspberry Pi, including panels larger than WLED handles well (such as
+  256×192). It answers like a WLED node, so the composer, and apps such as
+  LedFx, find it and read its size the same way.
+- **Any other DDP receiver**: type its address and set the panel's size by
+  hand.
 
 ## Quick start
 
-On the Raspberry Pi:
+On the Mac or PC:
+
+```sh
+git clone https://github.com/AnjinMeili/matrixprism.git
+cd matrixprism/composer
+npm install
+npm start -- --ddp <receiver host>
+```
+
+Then open <http://localhost:8080/> and choose the receiver under Setup.
+`<receiver host>` is the receiver's IP address or name, such as
+`wled-e1f2a3.local`; it can be left out and the receiver chosen in the page.
+
+To use `matrix-dmx` as the receiver, on the Raspberry Pi:
 
 ```sh
 git clone --recursive https://github.com/AnjinMeili/matrixprism.git
@@ -29,16 +59,7 @@ make
 sudo ./matrix-dmx
 ```
 
-On the Mac or PC:
-
-```sh
-cd matrixprism/composer
-npm install
-npm start -- --pi <matrix host>
-```
-
-Then open <http://localhost:8080/>. The READMEs of the two parts have the
-options and the details.
+The READMEs of the two parts have the options and the details.
 
 ## What the composer does
 
@@ -53,7 +74,7 @@ options and the details.
   a bar, a phrase or a change in the music;
 - playlists of saved looks, a randomizer, and clock, date and text overlays.
 
-## What the receiver does
+## What the receiver (`matrix-dmx`) does
 
 - Listens for Art-Net, sACN (E1.31) and DDP, and answers Art-Net scans and
   WLED-style discovery, so existing senders find it;

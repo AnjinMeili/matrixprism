@@ -1,5 +1,5 @@
 // What the page takes from the server's /api/config: the matrix host and DDP
-// port given on its command line (`--pi`, `--ddp-port`), and when it started.
+// port given on its command line (`--ddp`, `--ddp-port`), and when it started.
 //
 // A host named on the command line wins once each time the server starts,
 // even over a host saved in the browser; a host chosen in the page after that

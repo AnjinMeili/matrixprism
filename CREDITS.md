@@ -76,7 +76,8 @@ with them. No code from the projects named is included.
 - **WLED**'s JSON API and mDNS discovery, by the
   [WLED project](https://github.com/Aircoookie/WLED), imitated so that apps
   such as [LedFx](https://github.com/LedFx/LedFx) can find and stream to the
-  receiver. WLED is a trademark of its project; MatrixPrism is not affiliated
+  receiver. The composer uses the same API and DDP to find and stream to
+  WLED devices themselves. WLED is a trademark of its project; MatrixPrism is not affiliated
   with it.
 
 ## Data used for measurement, not included

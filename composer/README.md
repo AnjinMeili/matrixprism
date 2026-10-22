@@ -1,18 +1,20 @@
 # MatrixPrism composer
 
-> The composer half of [MatrixPrism](../README.md); the receiver it streams
-> to is in [../receiver/](../receiver/README.md).
+> The composer half of [MatrixPrism](../README.md). It streams to any DDP
+> receiver, such as WLED; MatrixPrism's own receiver is in
+> [../receiver/](../receiver/README.md).
 > For how the app is built see [../docs/composer-spec.md](../docs/composer-spec.md),
 > and for current status and next steps see [roadmap.md](../docs/roadmap.md).
 
 A local app that renders generative, audio-reactive patterns and streams them
-to `matrix-dmx` on the Pi over DDP (UDP 4048).
+over DDP (UDP 4048) to an LED receiver: a WLED controller, `matrix-dmx` on a
+Raspberry Pi, or any other DDP receiver.
 
 - The browser renders shader patterns and stateful Aurora ports, analyses audio
   with the Web Audio API, and shows a live preview at the matrix's exact resolution.
 - A small Node.js server forwards each finished frame as standard DDP: RGB,
   row-major from the top-left, 480 pixels per packet, with the push flag on
-  the last packet so the Pi swaps once per frame.
+  the last packet so the receiver shows each frame whole.
 
 ## Recording
 
@@ -92,15 +94,19 @@ Requires Node.js 18 or newer.
 ```sh
 cd composer
 npm install
-npm start -- --pi wled-e1f2a3.local
+npm start -- --ddp wled-e1f2a3.local
 ```
 
 Open <http://localhost:8080/>, then:
 
 1. On the **Setup** view, choose the receiver from the **Receiver** menu, or
-   type its host: the Pi's IP or the WLED name printed by `matrix-dmx`.
-2. Click **Detect size**. This reads `leds.matrix` from the Pi's
-   `/json/info`, so the frame matches the panel (for example 256×192).
+   type its host: its IP address or its WLED name, such as
+   `wled-e1f2a3.local` (`matrix-dmx` prints the one it uses).
+2. Click **Detect size**. This reads `leds.matrix` from the receiver's
+   `/json/info`, WLED's JSON API, which `matrix-dmx` imitates, so the frame
+   matches the panel (for example 256×192). A WLED set up as a strip rather
+   than a 2D matrix, or a receiver without that API, has no size to read:
+   set it under Matrix.
 3. Choose an audio input and click **Start streaming** in the header.
 
 **Start streaming** reads the size again every time, and so does a stream
@@ -109,6 +115,12 @@ If the size cannot be read, it streams at the size set and says so.
 
 ### Receivers
 
+- **What can receive:** anything that takes DDP on UDP 4048 (or the port
+  given by `--ddp-port`). WLED and `matrix-dmx` are found on the network and
+  their size is read. The composer has been tested with WLED 16 and 17 only,
+  on panels of 32×32 (WLED 16) and 128×64 (WLED 17, on an Adafruit Matrix
+  Portal S3), and with `matrix-dmx` at 96×64 and 256×192. `matrix-dmx`
+  exists for panels larger than WLED handles well.
 - **The Receiver menu** lists the receivers used before, each marked online
   with its name and size or as not answering, then any found on the network
   that are new. The server finds them by asking the network for WLED's
@@ -182,8 +194,8 @@ Server options:
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `--pi <host>` | `$MATRIX_HOST` | Matrix host. It replaces the host saved in the browser once each time the server starts, also in a tab left open across the restart; a host typed in the page afterwards stands until the next start |
-| `--ddp-port <n>` | `4048` | DDP port on the Pi |
+| `--ddp <host>` | `$MATRIX_HOST` | The DDP receiver, WLED or `matrix-dmx`, by IP address or name. `--pi`, its old name, still works. It replaces the host saved in the browser once each time the server starts, also in a tab left open across the restart; a host typed in the page afterwards stands until the next start |
+| `--ddp-port <n>` | `4048` | DDP port on the receiver |
 | `--port <n>` | `8080` | Port for the UI |
 | `--listen <ip>` | `127.0.0.1` | Interface for the UI; local only by default |
 
@@ -713,7 +725,7 @@ pattern. Nothing is drawn until you add an element.
   readability over busy effects. Text uses the browser's bold monospace font.
 - Clocks offer 12-hour AM/PM or 24-hour time, optional seconds, and local/UTC
   time. Dates offer ISO `YYYY-MM-DD` or locale-dependent short/long formats.
-  They use the **composer computer's wall clock**, not the Pi's or animation
+  They use the **composer computer's wall clock**, not the receiver's or animation
   Speed, and continue updating with Speed zero and in background tabs.
 - Each element has a visibility toggle. The master toggle hides all without
   deleting them. **Move back/front** changes stacking order; later elements
@@ -1088,7 +1100,7 @@ are interpolated directly rather than quantized to 16 palette entries.
 **Licensing:** the composer application combined with the new GPL-derived
 adaptations is distributed under **GPL-3.0**; the project as a whole is
 GPL-3.0-or-later (see [../CREDITS.md](../CREDITS.md)). Original MIT/CC0 components keep
-their attribution. This does not relicense the independent Pi receiver.
+their attribution. This does not relicense the independent receiver, `matrix-dmx`.
 Source revision, adaptation notes and credits are in
 [public/licenses/fibonacci.txt](public/licenses/fibonacci.txt), full GPL text in
 [public/licenses/gpl-3.0.txt](public/licenses/gpl-3.0.txt), and original gradient
@@ -1120,13 +1132,15 @@ at normalized frequency `x` and age `age` (0 = newest, 1 = oldest).
 ## Notes
 
 - **Bandwidth:** 256×192 at 30 fps is about 3,100 packets/s (4.4 MB/s). If
-  the Pi drops frames, lower **Frame rate**.
+  the receiver drops frames, lower **Frame rate**, or set the receiver's
+  **Most frames a second sent**.
 - **Switching tabs keeps streaming.** A Web Worker drives rendering rather
   than the visibility-dependent animation-frame API. Keep the page open and
   the computer awake: browser tab freezing/discarding or system sleep can
   still interrupt streaming.
 - **Stopping** sends one black frame unless that option is unchecked.
-  Otherwise the Pi keeps showing the last frame.
+  Otherwise `matrix-dmx` keeps showing the last frame, and WLED shows it
+  until its realtime timeout passes and it goes back to its own effect.
 - **Gamma** above 1.0 darkens mid-tones, which often looks better on LED
   panels. Brightness is applied before sending.
 

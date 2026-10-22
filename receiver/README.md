@@ -8,7 +8,10 @@ Raspberry Pi RGB LED matrix, and records and plays back what it displays.
 for matrix output.
 
 The receiver stands alone: it takes pixel data from any Art-Net, sACN or DDP
-sender, not only from the MatrixPrism [composer](../composer/README.md).
+sender, not only from the MatrixPrism [composer](../composer/README.md). Nor
+does the composer need it: it streams to WLED and other DDP receivers too.
+`matrix-dmx` is for HUB75 panels on a Pi, including panels larger than WLED
+handles well.
 
 ## Build
 

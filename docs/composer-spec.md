@@ -3,8 +3,9 @@
 Last updated: 2026-10-15. Describes the code on the `audio-layers` branch
 (T30: the high band and sparkles), from `main`.
 
-The composer renders patterns in a browser and streams them to the matrix
-receiver (`matrix-dmx`, in `receiver/`). This document describes how it is put together: the processes, the
+The composer renders patterns in a browser and streams them as DDP to an
+LED receiver: WLED, the project's own `matrix-dmx` (in `receiver/`), or any
+other DDP receiver. This document describes how it is put together: the processes, the
 frame pipeline, the pattern interface, the modules and the saved settings.
 For how to use it, see [composer/README.md](../composer/README.md). For
 current state and next steps, see [roadmap.md](roadmap.md).
@@ -12,7 +13,7 @@ current state and next steps, see [roadmap.md](roadmap.md).
 ## Processes and data flow
 
 ```
-audio input ─► browser page ──WebSocket──► Node server ──UDP (DDP)──► matrix-dmx on the Pi
+audio input ─► browser page ──WebSocket──► Node server ──UDP (DDP)──► DDP receiver (WLED, matrix-dmx, …)
                (render frames)             (split into packets)
 ```
 
@@ -20,7 +21,8 @@ audio input ─► browser page ──WebSocket──► Node server ──UDP (
   with WebGL, reads the pixels back and sends them as one binary WebSocket
   message of `width × height × 3` RGB bytes, top row first.
 - **Node server** (`composer/server.js`, `lib/ddp.js`): serves the page,
-  looks up the matrix size from the receiver's WLED-style `/json/info`, and
+  looks up the matrix size from the receiver's `/json/info` (WLED's API,
+  which `matrix-dmx` imitates), and
   turns each frame into DDP packets of up to 1440 bytes, with the push flag on
   the last. It refuses cross-site WebSocket and `/api/*` requests, and any
   request whose `Host` is not one of its own names (`lib/hosts.js`).

@@ -27,7 +27,9 @@ const CONTENT_TYPES = {
 
 const { values: options } = parseArgs({
   options: {
-    pi: { type: 'string', default: process.env.MATRIX_HOST || '' },
+    ddp: { type: 'string' },
+    // The old name of --ddp, from when the only receiver was a Pi.
+    pi: { type: 'string' },
     'ddp-port': { type: 'string', default: String(DDP_PORT) },
     port: { type: 'string', default: '8080' },
     listen: { type: 'string', default: '127.0.0.1' },
@@ -40,11 +42,13 @@ const { values: options } = parseArgs({
 // name a different receiver.
 const STARTED = new Date().toISOString();
 
-if (options.help) {
-  console.log(`usage: node server.js [--pi <host>] [--ddp-port 4048] [--port 8080] [--listen 127.0.0.1]
+const receiverHost = options.ddp ?? options.pi ?? process.env.MATRIX_HOST ?? '';
 
-  --pi        Default matrix host (IP or name, e.g. wled-e1f2a3.local)
-  --ddp-port  DDP UDP port on the matrix (default 4048)
+if (options.help) {
+  console.log(`usage: node server.js [--ddp <host>] [--ddp-port 4048] [--port 8080] [--listen 127.0.0.1]
+
+  --ddp       Default DDP receiver, WLED or matrix-dmx (IP or name, e.g. wled-e1f2a3.local)
+  --ddp-port  DDP UDP port on the receiver (default 4048)
   --port      HTTP port for the UI (default 8080)
   --listen    Interface for the UI (default 127.0.0.1, local only)
   --record-dir Recording output folder (default ~/Movies/MatrixPrism)`);
@@ -172,7 +176,7 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/api/config') {
     // `started` lets the page apply a host named on the command line once per
     // start, over one saved in the browser (server-config.js).
-    sendJson(response, 200, { host: options.pi, ddpPort: defaultDdpPort, started: STARTED });
+    sendJson(response, 200, { host: receiverHost, ddpPort: defaultDdpPort, started: STARTED });
     return;
   }
   if (url.pathname === '/api/version') {
@@ -288,6 +292,6 @@ server.listen(httpPort, options.listen, () => {
   const shownHost = options.listen === '0.0.0.0' ? 'localhost'
     : net.isIPv6(options.listen) ? `[${options.listen}]` : options.listen;
   console.log(`MatrixPrism composer UI: http://${shownHost}:${server.address().port}/`);
-  if (options.pi)
-    console.log(`Default matrix host: ${options.pi} (DDP port ${defaultDdpPort})`);
+  if (receiverHost)
+    console.log(`Default DDP receiver: ${receiverHost} (DDP port ${defaultDdpPort})`);
 });

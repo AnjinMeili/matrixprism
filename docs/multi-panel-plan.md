@@ -38,7 +38,7 @@ network already, from 96×64 to 256×192.
   canvas size.
   - **Migration:** settings from before become a canvas the size of the one
     panel, with that panel as its only window.
-  - **The command line:** `--pi` could take several hosts.
+  - **The command line:** `--ddp` could take several hosts.
 - **Sizes:** each window's size is read from its receiver before streaming
   (T32), one by one. A receiver that cannot be read keeps the size set, with
   a warning naming it.
