@@ -1,0 +1,44 @@
+Fibonacci128 native-panel adaptations
+
+Source: https://github.com/AnjinMeili/fibonacci128-touch-aurora
+Branch: aurora
+Revision: 5f8dd395f5a8f62d169463d125ee5b102b526611
+Repository license: GNU GPL version 3; see gpl-3.0.txt.
+
+Adapted files:
+  fibonacci128/PatternFibonacciSpiral.h (Fibonacci Bloom and Chase)
+  fibonacci128/Patterns.h (Electric Mandala)
+  fibonacci128/PatternSublime.h (Radial Fire)
+  fibonacci128/GradientPalettes.h (33 cpt-city gradients)
+
+Aurora source attribution:
+  Copyright (c) 2014 Jason Coon and Stefan Petrick (FunkyNoise).
+  https://github.com/pixelmatix/aurora
+
+Sublime source attribution:
+  Novel Mutations Costume Controllers 2018 / Intrinsically-Sublime
+  https://github.com/Intrinsically-Sublime/esp8266-fastled-webserver
+  Further adapted by Marc MERLIN, then by Fibonacci128 contributors.
+  PatternSublime.h explicitly identifies GPLv3.
+
+Gradient palettes:
+  From ColorWavesWithPalettes by Mark Kriegsman:
+  https://gist.github.com/kriegsman/8281905786e8b2632aeb
+  Individual cpt-city palette names, source URLs and conversion comments
+  are preserved verbatim in gradient-palettes.txt.
+
+Native adaptations use generated golden-angle phyllotaxis coordinates rather
+than the board's 128 physical LED map. Point count increases with panel area.
+Bloom/chase retain the source's pulse, arm-change, fade and hue structure.
+Electric Mandala uses the existing FastLED-compatible inoise8 helper instead
+of inoise16, and continuous native coordinates rather than byte-grid folds.
+Radial Fire retains 32 heat bands, cooling/spark/transport rules and angular
+noise, interpolating bands across native panel pixels. Heat colours use a
+continuous black/red/yellow/white gradient. These are adaptations, not
+byte-identical firmware ports. FastLED palette stops are interpolated directly
+instead of quantized into a 16-entry gradient palette.
+
+The composer application as combined with these adaptations is distributed
+under GPL-3.0. Existing MIT/CC0 notices remain applicable to their respective
+components; see aurora.txt. This notice does not relicense the independent
+Raspberry Pi receiver or third-party matrix submodule.

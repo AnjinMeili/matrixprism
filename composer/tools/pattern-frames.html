@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pattern frames</title>
+<!-- Loaded by tools/pattern-frames.mjs in headless Chrome. Draws one pattern
+     through the real Renderer on simulated audio and posts a contact sheet
+     of its frames as a PNG, for a person to look at. Query: id, width,
+     height, frames (how many on the sheet), every (frames between them),
+     scale, params (JSON, the pattern's settings). -->
+<canvas id="canvas"></canvas>
+<script type="module">
+const options = new URLSearchParams(location.search);
+const W = Number(options.get('width') || 64), H = Number(options.get('height') || 32);
+const COUNT = Number(options.get('frames') || 8), EVERY = Number(options.get('every') || 6);
+const SCALE = Number(options.get('scale') || 4), DT = 1 / 30;
+let result;
+try {
+  const { PATTERNS } = await import('./patterns.js');
+  const { Renderer } = await import('./renderer.js');
+  const { AudioAnalyzer } = await import('./audio.js');
+  const { SHAPE_DEFAULTS } = await import('./shape.js');
+  const { SPECTRUM_DEFAULTS } = await import('./spectrum-plot.js');
+  const pattern = PATTERNS.find((p) => p.id === options.get('id'));
+  const renderer = new Renderer(document.getElementById('canvas'));
+  renderer.setSize(W, H);
+  const audio = new AudioAnalyzer();
+  audio.startSimulated();
+  const params = JSON.parse(options.get('params') || '{}');
+  const sheet = document.createElement('canvas');
+  const columns = Math.min(4, COUNT), gap = 4;
+  sheet.width = columns * (W * SCALE + gap) + gap;
+  sheet.height = Math.ceil(COUNT / columns) * (H * SCALE + gap) + gap;
+  const context = sheet.getContext('2d');
+  context.fillStyle = '#333';
+  context.fillRect(0, 0, sheet.width, sheet.height);
+  context.imageSmoothingEnabled = false;
+  const frame = document.createElement('canvas');
+  frame.width = W;
+  frame.height = H;
+  let time = 0;
+  for (let n = 0, drawn = 0; drawn < COUNT; ++n) {
+    const features = audio.update(DT, 1);
+    time += DT;
+    const rgb = renderer.render({
+      pattern, previousPattern: null, mix: 1, layer: null, shape: SHAPE_DEFAULTS, beatPosition: time * 2,
+      changeClock: time * 2, time, auroraTime: time, previousTime: time, audio: features, audioTime: time,
+      spectrum: audio.spectrum, spectrumLeft: audio.spectrumLeft, spectrumRight: audio.spectrumRight, wave: audio.wave,
+      hue: 0, manualHue: 0, musicalKey: null, brightness: 1, gamma: 1, flock: { count: null }, auroraDotSize: null,
+      mediaFit: 'cover', silenceMode: 'quiet', paletteId: 'original', spectrumOptions: SPECTRUM_DEFAULTS,
+      rawSpectrum: audio.plotInput, patternParams: { [pattern.id]: params }, overlays: { enabled: false, elements: [] },
+      wallTime: 0,
+    });
+    if (n < 60 || (n - 60) % EVERY) continue;
+    const image = frame.getContext('2d').createImageData(W, H);
+    for (let i = 0, j = 0; i < rgb.length; i += 3, j += 4) {
+      image.data[j] = rgb[i]; image.data[j + 1] = rgb[i + 1]; image.data[j + 2] = rgb[i + 2]; image.data[j + 3] = 255;
+    }
+    frame.getContext('2d').putImageData(image, 0, 0);
+    context.drawImage(frame, gap + (drawn % columns) * (W * SCALE + gap), gap + Math.floor(drawn / columns) * (H * SCALE + gap),
+      W * SCALE, H * SCALE);
+    ++drawn;
+  }
+  result = sheet.toDataURL('image/png');
+} catch (error) {
+  result = `FAIL ${error.stack}`;
+}
+fetch('/result', { method: 'POST', body: result });
+</script>

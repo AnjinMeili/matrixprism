@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Long-run brightness</title>
+<!-- Loaded by tools/long-run-brightness.mjs in headless Chrome. Draws
+     patterns through the real Renderer on seeded simulated audio and prints
+     each one's mean output level (0 to 255, over every channel of every
+     frame), first with every clock the app passes (time, auroraTime,
+     beatPosition, changeClock, audioTime) started as if the page had been
+     open for a while, then with the spectrum lowered as a quieter input
+     would lower it. ?patterns= (comma separated ids, shader patterns by
+     default), ?width=, ?height=, ?gain= (1.5 by default, the app's). -->
+<canvas id="canvas"></canvas>
+<pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById('out');
+try {
+  const options = new URLSearchParams(location.search);
+  const W = Number(options.get('width') || 64), H = Number(options.get('height') || 48);
+  const GAIN = Number(options.get('gain') || 1.5);
+  const FRAMES = 90, DT = 1 / 30;
+  // Hours the page has been open, as clock offsets.
+  const HOURS = [0, 1, 4, 12, 24, 72];
+  // How many decibels quieter the input is. The analyser maps -90 to -15 dB
+  // onto 0 to 255 (audio.js), so 1 dB is 255 / 75 = 3.4 of a byte, before gain.
+  const DROPS = [0, 6, 12, 20, 30];
+  const musicalKey = { camelot: { number: 8 }, mode: 'minor', confidence: 0.8 };
+  const { PATTERNS } = await import('./patterns.js');
+  const { Renderer } = await import('./renderer.js');
+  const { AudioAnalyzer } = await import('./audio.js');
+  const { SHAPE_DEFAULTS } = await import('./shape.js');
+  const renderer = new Renderer(document.getElementById('canvas'));
+  renderer.setSize(W, H);
+  const quieter = (spectrum, drop) => {
+    for (let i = 0; i < spectrum.length; ++i)
+      spectrum[i] = Math.min(255, Math.max(0, spectrum[i] / GAIN - drop * 255 / 75) * GAIN);
+  };
+  const run = (pattern, hours, drop) => {
+    let seed = 1;
+    Math.random = () => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const audio = new AudioAnalyzer();
+    audio.startSimulated();
+    const start = hours * 3600;
+    let time = start, sum = 0, count = 0;
+    for (let frame = 0; frame < FRAMES; ++frame) {
+      const features = audio.update(DT, GAIN);
+      if (drop) for (const s of [audio.spectrum, audio.spectrumLeft, audio.spectrumRight]) quieter(s, drop);
+      time += DT * (1 + features.level * 0.8);
+      const seconds = start + frame * DT;
+      const rgb = renderer.render({
+        pattern, previousPattern: null, mix: 1, layer: null, shape: SHAPE_DEFAULTS,
+        beatPosition: seconds * 2, changeClock: seconds * 2, time, auroraTime: seconds, previousTime: time,
+        audio: features, audioTime: seconds, spectrum: audio.spectrum, spectrumLeft: audio.spectrumLeft,
+        spectrumRight: audio.spectrumRight, wave: audio.wave, hue: 0, manualHue: 0, musicalKey,
+        brightness: 1, gamma: 1, patternParams: {}, overlays: { enabled: false, elements: [] }, wallTime: 0,
+      });
+      for (let i = 0; i < rgb.length; ++i) sum += rgb[i];
+      count += rgb.length;
+    }
+    return sum / count;
+  };
+  const ids = options.get('patterns')?.split(',');
+  const chosen = ids ? ids.map((id) => PATTERNS.find((p) => p.id === id) ?? (() => { throw new Error(`No pattern ${id}`); })()) :
+    PATTERNS.filter((p) => p.glsl);
+  const lines = [`# mean output level, 0-255; ${W}x${H}, gain ${GAIN}, ${FRAMES} frames`,
+    `pattern\tclock: ${HOURS.map((h) => `${h} h`).join('\t')}\tinput: ${DROPS.map((d) => `-${d} dB`).join('\t')}`];
+  for (const pattern of chosen) {
+    const byHours = HOURS.map((h) => run(pattern, h, 0));
+    const byDrop = DROPS.map((d) => run(pattern, 0, d));
+    lines.push(`${pattern.id}\t${byHours.map((v) => v.toFixed(1)).join('\t')}\t${byDrop.map((v) => v.toFixed(1)).join('\t')}`);
+  }
+  out.textContent = lines.join('\n');
+} catch (error) {
+  out.textContent = `FAIL ${error.message}`;
+}
+</script>

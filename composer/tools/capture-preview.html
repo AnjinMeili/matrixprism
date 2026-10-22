@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Live BlackHole preview capture</title>
+<canvas id="canvas"></canvas>
+<script type="module">
+const post = (body) => fetch('/result', { method: 'POST', body });
+let audio, timer, recorder;
+try {
+  const { PATTERNS } = await import('./patterns.js');
+  const { Renderer } = await import('./renderer.js');
+  const { AudioAnalyzer } = await import('./audio.js');
+  const { SHAPE_DEFAULTS } = await import('./shape.js');
+  const { SPARKLE_DEFAULTS } = await import('./sparkle.js');
+  const { SPECTRUM_DEFAULTS } = await import('./spectrum-plot.js');
+  const { blendModeIndex } = await import('./mixer.js');
+  const options = new URLSearchParams(location.search);
+  const seconds = Number(options.get('seconds') || 15);
+  const width = 256, height = 192, fps = 30;
+  const permission = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const devices = await AudioAnalyzer.listInputs();
+  permission.getTracks().forEach((track) => track.stop());
+  const device = devices.find((input) => input.label.toLowerCase().includes('blackhole'));
+  if (!device) throw new Error('BlackHole input not found');
+  audio = new AudioAnalyzer();
+  await audio.startDevice(device.deviceId);
+  await audio.context.resume();
+  const canvas = document.getElementById('canvas');
+  const renderer = new Renderer(canvas);
+  renderer.setSize(width, height);
+  const picture = canvas.captureStream(0);
+  const videoTrack = picture.getVideoTracks()[0];
+  const stream = new MediaStream([videoTrack, ...audio.stream.getAudioTracks()]);
+  const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus']
+    .find((type) => MediaRecorder.isTypeSupported(type));
+  if (!mimeType) throw new Error('No WebM audio/video recorder available');
+  const chunks = [];
+  recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4000000, audioBitsPerSecond: 192000 });
+  recorder.ondataavailable = ({ data }) => { if (data.size) chunks.push(data); };
+  const stopped = new Promise((resolve, reject) => {
+    recorder.onstop = resolve;
+    recorder.onerror = (event) => reject(new Error(event.error?.message || 'Recorder failed'));
+  });
+  let frames = 0, lit = 0, changed = 0, previousHash = null, peakLevel = 0;
+  let previous = performance.now();
+  const start = previous;
+  function draw() {
+    const now = performance.now();
+    const time = (now - start) / 1000;
+    const dt = Math.min(0.1, (now - previous) / 1000);
+    previous = now;
+    const features = audio.update(dt, 1, now / 1000);
+    peakLevel = Math.max(peakLevel, features.level);
+    const rgb = renderer.render({
+      pattern: PATTERNS.find((pattern) => pattern.id === 'plasma'),
+      previousPattern: null, mix: 1,
+      layer: { pattern: PATTERNS.find((pattern) => pattern.id === 'bars'),
+        mode: blendModeIndex('screen'), amount: 0.4, shape: SHAPE_DEFAULTS },
+      shape: SHAPE_DEFAULTS, beatPosition: time * 2, changeClock: time * 2,
+      time, auroraTime: time, previousTime: time, audio: features, audioTime: now / 1000,
+      spectrum: audio.spectrum, spectrumLeft: audio.spectrumLeft,
+      spectrumRight: audio.spectrumRight, wave: audio.wave,
+      hue: 0.1, manualHue: 0.1, musicalKey: null, brightness: 1, gamma: 1,
+      flock: { count: null }, auroraDotSize: null, mediaFit: 'cover', silenceMode: 'quiet',
+      paletteId: 'original', spectrumOptions: SPECTRUM_DEFAULTS, rawSpectrum: audio.plotInput,
+      patternParams: {}, overlays: { enabled: false, elements: [] },
+      sparkles: { ...SPARKLE_DEFAULTS, enabled: true, amount: 0.5 }, wallTime: Date.now(),
+    });
+    let hash = 0x811c9dc5;
+    for (const value of rgb) {
+      if (value > 16) ++lit;
+      hash = Math.imul(hash ^ value, 0x01000193) >>> 0;
+    }
+    if (previousHash !== null && previousHash !== hash) ++changed;
+    previousHash = hash;
+    ++frames;
+    videoTrack.requestFrame();
+  }
+  recorder.start(1000);
+  draw();
+  let renderError = null;
+  timer = setInterval(() => {
+    try { draw(); } catch (error) { renderError = error; clearInterval(timer); }
+  }, 1000 / fps);
+  await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+  clearInterval(timer);
+  recorder.stop();
+  await stopped;
+  const settings = audio.stream.getAudioTracks()[0].getSettings();
+  audio.stop();
+  picture.getTracks().forEach((track) => track.stop());
+  if (renderError) throw renderError;
+  if (peakLevel < 0.001) throw new Error('BlackHole was silent; no sample accepted');
+  if (!frames || lit / (frames * width * height * 3) < 0.05 || changed < frames * 0.5)
+    throw new Error('Composition was dark or static');
+  const blob = new Blob(chunks, { type: mimeType });
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.slice(reader.result.lastIndexOf(',') + 1));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  await post(JSON.stringify({ data, input: device.label, settings, mimeType,
+    width, height, seconds, frames, changedFrames: changed,
+    litShare: lit / (frames * width * height * 3), peakLevel,
+    patterns: ['plasma', 'bars'],
+    limitation: 'Standalone sample mix, not the running browser look; WebM is transcoded to MP4.' }));
+} catch (error) {
+  clearInterval(timer);
+  if (recorder?.state === 'recording') recorder.stop();
+  audio?.stop();
+  await post(`FAIL ${error.stack}`);
+}
+</script>

@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pattern settings check</title>
+<!-- Loaded by tools/check-param-controls.mjs in headless Chrome. Builds the
+     Pattern settings controls (param-controls.js) for a pattern with each
+     kind of parameter, changes each control as a person would, and reports
+     what was saved. -->
+<div id="fields"></div>
+<pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById('out');
+try {
+  const { buildParamControls } = await import('./param-controls.js');
+  const { PATTERNS } = await import('./patterns.js');
+  const pattern = {
+    id: 'demo', params: [
+      { id: 'scale', name: 'Scale', min: 0.5, max: 8, step: 0.1, default: 3, help: 'How big' },
+      { id: 'grid', name: 'Grid', type: 'bool', default: true },
+      { id: 'mode', name: 'Mode', type: 'choice', choices: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], default: 'a' },
+    ],
+  };
+  const fields = document.getElementById('fields');
+  const saved = [];
+  buildParamControls(fields, pattern, { scale: 5 }, (next) => saved.push(next), 'Layer A: Demo');
+  const $ = (id) => document.getElementById(id);
+  const result = {
+    heading: fields.querySelector('.param-heading')?.textContent,
+    start: { scale: $('param-demo-scale').value, shown: $('param-demo-scale').previousElementSibling.textContent,
+      grid: $('param-demo-grid').checked, mode: $('param-demo-mode').value, title: $('param-demo-scale').parentElement.title },
+  };
+  $('param-demo-scale').value = '6.3';
+  $('param-demo-scale').dispatchEvent(new Event('input'));
+  result.shownAfterSlide = $('param-demo-scale').previousElementSibling.textContent;
+  $('param-demo-grid').checked = false;
+  $('param-demo-grid').dispatchEvent(new Event('change'));
+  $('param-demo-mode').value = 'b';
+  $('param-demo-mode').dispatchEvent(new Event('change'));
+  fields.querySelector('button').click();
+  result.saved = saved;
+  result.afterReset = { scale: $('param-demo-scale').value, grid: $('param-demo-grid').checked, mode: $('param-demo-mode').value };
+  // Every real pattern's controls build without an error.
+  const built = document.createElement('div');
+  let count = 0;
+  for (const p of PATTERNS.filter((entry) => entry.params?.length)) {
+    buildParamControls(built, p, {}, () => {});
+    count += p.params.length;
+  }
+  result.realPatterns = { controls: built.querySelectorAll('input, select').length, params: count };
+  out.textContent = JSON.stringify(result, null, 1);
+} catch (error) {
+  out.textContent = `FAIL ${error.message}`;
+}
+</script>

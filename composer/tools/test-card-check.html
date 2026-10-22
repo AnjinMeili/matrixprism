@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Test card check</title>
+<!-- Loaded by tools/check-test-card.mjs in headless Chrome. Draws the Panel
+     Range card's shader at several panel sizes and times and compares every
+     pixel with cardLevels(), the JavaScript reference in test-card.js. -->
+<pre id="out">running</pre>
+<script type="module">
+const lines = [];
+try {
+  const { PRELUDE } = await import('./patterns.js');
+  const { PANEL_RANGE_PATTERN, cardLevels } = await import('./test-card.js');
+  for (const [w, h] of [[256, 192], [192, 128], [128, 64], [64, 64], [32, 32]]) {
+    for (const time of [0.25, 0.75, 3.25]) {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+      const make = (type, source) => {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+          throw new Error(gl.getShaderInfoLog(shader));
+        return shader;
+      };
+      const program = gl.createProgram();
+      gl.attachShader(program, make(gl.VERTEX_SHADER,
+        'attribute vec2 a; void main() { gl_Position = vec4(a, 0.0, 1.0); }'));
+      gl.attachShader(program, make(gl.FRAGMENT_SHADER,
+        `${PRELUDE}\n${PANEL_RANGE_PATTERN.glsl}\nvoid main() { gl_FragColor = vec4(clamp(render(), 0.0, 1.0), 1.0); }`));
+      gl.linkProgram(program);
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      const position = gl.getAttribLocation(program, 'a');
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform2f(gl.getUniformLocation(program, 'u_res'), w, h);
+      gl.uniform1f(gl.getUniformLocation(program, 'u_time'), time);
+      gl.viewport(0, 0, w, h);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      const pixels = new Uint8Array(w * h * 4);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      let wrong = 0, first = '';
+      for (let y = 0; y < h; ++y) {
+        for (let x = 0; x < w; ++x) {
+          const want = cardLevels((x + 0.5) / w, (y + 0.5) / h, time, w);
+          const at = (y * w + x) * 4;
+          const got = [pixels[at], pixels[at + 1], pixels[at + 2]];
+          if (want.some((value, i) => value !== got[i]) && !wrong++)
+            first = `; first at ${x},${y}: wanted ${want}, got ${got}`;
+        }
+      }
+      lines.push(`${wrong ? 'FAIL' : 'ok  '} ${w}x${h} at ${time}s: ${wrong} of ${w * h} pixels differ${first}`);
+    }
+  }
+} catch (error) {
+  lines.push(`FAIL page: ${error.message}`);
+}
+document.getElementById('out').textContent = lines.join('\n');
+</script>

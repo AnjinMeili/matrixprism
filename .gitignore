@@ -1,0 +1,5 @@
+.DS_Store
+/matrix.old/
+/warnings
+/.vscode/
+*.code-workspace

@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shader check</title>
+<!-- Loaded by tools/check-shaders.mjs in headless Chrome. Builds the real
+     Renderer, which compiles the compositor, and then every shader pattern
+     through the renderer's own code. Results go in the <pre> for the tool
+     to read. -->
+<canvas id="preview" width="64" height="64"></canvas>
+<pre id="out">running</pre>
+<script type="module">
+const lines = [];
+try {
+  const { PATTERNS } = await import('./patterns.js');
+  const { Renderer } = await import('./renderer.js');
+  let renderer;
+  try {
+    renderer = new Renderer(document.getElementById('preview'));
+    renderer.setSize(64, 64);
+    lines.push('ok   compositor');
+  } catch (error) {
+    lines.push(`FAIL compositor: ${error.message}`);
+  }
+  if (renderer) {
+    for (const pattern of PATTERNS.filter((entry) => entry.glsl)) {
+      try {
+        renderer.patternProgram(pattern);
+        lines.push(`ok   ${pattern.id}`);
+      } catch (error) {
+        lines.push(`FAIL ${pattern.id}: ${error.message}`);
+      }
+    }
+  }
+} catch (error) {
+  lines.push(`FAIL page: ${error.message}`);
+}
+document.getElementById('out').textContent = lines.join('\n');
+</script>

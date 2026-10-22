@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pattern pixels</title>
+<!-- Loaded by tools/pattern-pixels.mjs in headless Chrome. Draws each shader
+     pattern through the real Renderer on seeded simulated audio and prints a
+     hash of the frames, so two versions can be compared pixel for pixel.
+     With ?sweep=1 it also draws each pattern's parameters (params.js) at
+     their extremes and says whether the picture changed. ?width= and
+     ?height= set the size, 64×48 by default. -->
+<canvas id="canvas"></canvas>
+<pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById('out');
+try {
+  const options = new URLSearchParams(location.search);
+  const W = Number(options.get('width') || 64), H = Number(options.get('height') || 48);
+  const FRAMES = 90, DT = 1 / 30;
+  // A key held throughout, so the Camelot Wheel draws its key and ripple.
+  const musicalKey = { camelot: { number: 8 }, mode: 'minor', confidence: 0.8 };
+  const { PATTERNS } = await import('./patterns.js');
+  const { Renderer } = await import('./renderer.js');
+  const { AudioAnalyzer } = await import('./audio.js');
+  const { SHAPE_DEFAULTS } = await import('./shape.js');
+  const renderer = new Renderer(document.getElementById('canvas'));
+  renderer.setSize(W, H);
+  // FNV-1a over every tenth frame of a run.
+  const run = (pattern, patternParams) => {
+    let seed = 1;
+    Math.random = () => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const audio = new AudioAnalyzer();
+    audio.startSimulated();
+    let time = 0, hash = 0x811c9dc5, lit = 0;
+    const frames = [];
+    for (let frame = 0; frame < FRAMES; ++frame) {
+      const features = audio.update(DT, 1);
+      time += DT * (1 + features.level * 0.8);
+      const rgb = renderer.render({
+        pattern, previousPattern: null, mix: 1, layer: null, shape: SHAPE_DEFAULTS,
+        beatPosition: frame * DT * 2, changeClock: frame * DT * 2, time, auroraTime: time, previousTime: time,
+        audio: features, audioTime: frame * DT, spectrum: audio.spectrum, spectrumLeft: audio.spectrumLeft,
+        spectrumRight: audio.spectrumRight, wave: audio.wave, hue: 0, manualHue: 0, musicalKey,
+        brightness: 1, gamma: 1, patternParams, overlays: { enabled: false, elements: [] }, wallTime: 0,
+      });
+      if (frame % 10 !== 9) continue;
+      frames.push(rgb.slice());
+      for (let i = 0; i < rgb.length; ++i) {
+        hash = Math.imul(hash ^ rgb[i], 0x01000193) >>> 0;
+        if (rgb[i] > 16) ++lit;
+      }
+    }
+    return { hash: hash.toString(16).padStart(8, '0'), lit, frames };
+  };
+  const lines = [];
+  // ?dump=<id> prints the pattern's sampled frames at its defaults, base64.
+  const dump = options.get('dump');
+  if (dump) {
+    const frames = run(PATTERNS.find((p) => p.id === dump), {}).frames;
+    const bytes = new Uint8Array(frames.reduce((n, f) => n + f.length, 0));
+    frames.reduce((at, f) => (bytes.set(f, at), at + f.length), 0);
+    let text = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    out.textContent = btoa(text);
+    throw null;
+  }
+  for (const pattern of PATTERNS.filter((p) => p.glsl)) {
+    const base = run(pattern, {});
+    lines.push(`${pattern.id}\t${base.hash}\t${base.lit}`);
+    if (!options.get('sweep')) continue;
+    for (const param of pattern.params ?? []) {
+      const type = param.type ?? 'number';
+      const values = type === 'bool' ? [!param.default] : type === 'choice' ?
+        param.choices.map((c) => c.id).filter((id) => id !== param.default) : [param.min, param.max].filter((v) => v !== param.default);
+      for (const value of values) {
+        const result = run(pattern, { [pattern.id]: { [param.id]: value } });
+        lines.push(`  ${param.id}=${value}\t${result.hash}\t${result.lit}\t${result.hash === base.hash ? 'SAME' : 'changed'}`);
+      }
+    }
+  }
+  out.textContent = lines.join('\n');
+} catch (error) {
+  if (error) out.textContent = `FAIL ${error.message}`;
+}
+</script>

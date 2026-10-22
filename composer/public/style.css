@@ -1,0 +1,375 @@
+:root {
+  color-scheme: dark;
+  --bg: #0e1015;
+  --panel: #171a22;
+  --line: #2a2f3c;
+  --text: #e6e8ee;
+  --muted: #8b93a7;
+  --accent: #5ad1ff;
+  --danger: #ff6b6b;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 { font-size: 18px; margin: 0; }
+header button { margin-top: 0; }
+
+.recording-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.recording-bar label { display: flex; align-items: center; gap: 8px; margin: 0; }
+.recording-bar select { width: auto; margin: 0; }
+.recording-bar button { min-width: 100px; margin: 0; }
+#recording-status { flex: 1; min-width: 160px; overflow-wrap: anywhere; color: var(--muted); }
+#recording-download { color: var(--accent); }
+.recording-bar[data-state="recording"] #record { color: var(--danger); border-color: var(--danger); }
+.recording-bar[data-state="error"] #recording-status { color: var(--danger); }
+
+.views { display: flex; gap: 4px; margin: 0 auto 0 8px; }
+.views button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+h2 { font-size: 15px; margin: 18px 0 8px; }
+h2 small { color: var(--muted); font-weight: normal; margin-left: 6px; }
+
+.pill {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.pill.ok { color: #7ef0a8; border-color: #2f6b47; }
+.pill.live { color: #111; background: #7ef0a8; border-color: #7ef0a8; }
+.pill.bad { color: var(--danger); border-color: #6b2f2f; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Preview and controls scroll separately so the preview stays in view. */
+main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  padding: 20px 20px 0;
+}
+.stage, .panel { overflow-y: auto; min-height: 0; padding-bottom: 20px; }
+.panel { scrollbar-gutter: stable; }
+.preview-frame { position: sticky; top: 0; z-index: 1; }
+[hidden] { display: none !important; }
+
+@media (max-width: 900px) {
+  body { display: block; height: auto; }
+  header { flex-wrap: wrap; }
+  .views { flex-wrap: wrap; }
+  main { display: block; padding-bottom: 20px; }
+  .stage, .panel { overflow-y: visible; }
+  .preview-frame { top: 8px; }
+  #preview { max-height: 35vh; }
+  .panel { margin-top: 20px; }
+}
+
+.preview-frame {
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+#preview {
+  width: 100%;
+  max-height: 50vh;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.stats { color: var(--muted); font-size: 13px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+.pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.pattern-grid button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+
+.panel fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  margin: 0 0 14px;
+  padding: 10px 14px 14px;
+}
+
+legend { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+label {
+  display: block;
+  font-size: 13px;
+  margin-top: 10px;
+}
+label output { float: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+label.check { display: flex; gap: 8px; align-items: center; }
+.param-section + .param-section { margin-top: 12px; }
+.param-heading { margin: 0 0 4px; font-weight: 600; }
+
+input:not([type]), input[type="number"], input[type="text"], select {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+}
+input[type="range"] { width: 100%; margin-top: 4px; }
+
+.row { display: flex; gap: 8px; align-items: end; }
+.row > * { flex: 1; }
+
+button {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: #062230; border-color: var(--accent); font-weight: 600; }
+button.primary.live { background: var(--danger); border-color: var(--danger); color: #2a0606; }
+
+#meter {
+  width: 100%;
+  height: 70px;
+  margin-top: 10px;
+  background: #000;
+  border-radius: 6px;
+}
+
+#monitor-graph {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
+
+#monitor-key-wheel {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  background: #000;
+  border-radius: 6px;
+}
+
+#monitor-trace {
+  width: 100%;
+  height: 110px;
+  background: #000;
+  border-radius: 6px;
+}
+
+.error { color: var(--danger); font-size: 13px; margin: 6px 0 0; }
+.error:empty { display: none; }
+.notice { color: var(--accent); font-size: 13px; margin: 6px 0 0; }
+.notice:empty { display: none; }
+
+#spectrum-fields details, #overlay-fields details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+#spectrum-fields summary, #overlay-fields summary { font-size: 13px; color: var(--accent); cursor: pointer; overflow-wrap: anywhere; }
+#spectrum-info { display: block; font-variant-numeric: tabular-nums; }
+
+input[type="file"] { width: 100%; margin-top: 4px; font: inherit; font-size: 12px; color: var(--muted); }
+#media-info { display: block; overflow-wrap: anywhere; }
+
+.pattern-group { grid-column: 1 / -1; margin: 12px 0 0; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+#audio-channels { display: block; }
+#playlist-fields details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+#playlist-fields summary { font-size: 13px; color: var(--accent); cursor: pointer; overflow-wrap: anywhere; }
+#playlist-fields details.current > summary { color: #7ef0a8; font-weight: 600; }
+#playlist-status { display: block; }
+button:disabled { opacity: 0.45; cursor: default; }
+#randomizer-status { display: block; }
+
+/* The quad mixer's layout (layout.js, layout-view.js): columns as shares of
+   the width, panes as shares of their column's height, stacked below the
+   layout's width. */
+.layout { display: grid; gap: 0; min-height: 0; }
+.layout-column { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; padding: 0 4px; }
+.layout-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.layout-pane > * { flex: 1 1 auto; min-height: 0; }
+.layout-stacked { grid-template-columns: 100% !important; row-gap: 8px; }
+.layout-stacked .layout-pane { flex: 0 0 auto !important; }
+/* Rows a component marks .mirrorable run right to left in a mirrored pane:
+   where controls sit mirrors, what they do does not. */
+.layout-mirror .mirrorable { flex-direction: row-reverse; }
+
+/* Help popovers (help.js). */
+.help { position: relative; display: inline-flex; align-items: center; }
+.help-button {
+  min-height: 0; width: 1.6em; height: 1.6em; padding: 0; margin: 0; border-radius: 50%;
+  font: italic 11px Georgia, serif; line-height: 1; color: var(--muted);
+}
+.help-button:hover, .help-button:focus-visible { color: var(--text); border-color: var(--muted); }
+.help-pop {
+  display: none; position: fixed; z-index: 20; left: 0; top: 0;
+  width: max-content; max-width: min(20em, calc(100vw - 16px)); padding: 0.55em 0.75em; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); font-size: 12px; line-height: 1.4; font-style: normal;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55); white-space: pre-line;
+}
+/* Shown and placed by help.js, against the window. */
+/* Kept to the window, and not in a legend's capitals. */
+.help-pop { max-height: calc(100vh - 16px); overflow-y: auto; text-transform: none; letter-spacing: normal; }
+legend .help-pop { max-width: min(30em, calc(100vw - 16px)); }
+
+/* The quad mixer's view (quad-view.js): in place of the rest below the
+   header, its panes laid out by layout-view.js. Sizes are shares of the
+   window, so it fits without scrolling until the layout stacks. */
+#quad-view { display: none; }
+body.quad-mode main { display: none; }
+body.quad-mode #quad-view { display: block; height: calc(100vh - 62px); padding: 8px 10px 10px; box-sizing: border-box; }
+/* The layout has its own element: #quad-view's display would outrank its grid. */
+#quad-layout { height: 100%; }
+#quad-layout.layout-stacked { height: auto; }
+.qv-pane {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; box-sizing: border-box; overflow: hidden;
+}
+.qv-pane h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.qv-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.qv-title, .qv-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.qv-badge {
+  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px;
+  background: var(--bg); border: 1px solid var(--line); font-weight: 700; font-size: 13px;
+}
+.qv-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.qv-live { border-color: var(--accent); color: var(--accent); }
+.qv-cue { border-color: #ffc85a; color: #ffc85a; }
+.qv-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.qv-row > * { flex: 1 1 28%; }
+.qv-row > .help { flex: 0 0 auto; align-self: center; }
+.qv-field { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); min-width: 0; margin: 0; }
+.qv-field output { color: var(--text); font-variant-numeric: tabular-nums; }
+.qv-field select { width: 100%; }
+.qv-check { display: flex; gap: 6px; align-items: center; font-size: 12px; white-space: nowrap; margin: 0; }
+/* A randomizer item and its time to the next change. */
+.qv-randoms > .qv-random { flex: 0 1 auto; }
+.qv-wait { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.5em; }
+/* A popover of an input's further controls (quad-view.js popoverPanel),
+   in the top layer and placed beside its button by script. */
+.qv-row > .qv-more { flex: 0 0 auto; align-self: flex-end; }
+.qv-shape-row > .qv-field { flex: 1 1 0; }
+.qv-more.qv-set { border-color: var(--accent); color: var(--accent); }
+.qv-pop {
+  position: fixed; inset: auto; margin: 0;
+  width: min(340px, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow: auto;
+  padding: 12px; background: var(--panel); color: inherit;
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.qv-pop h3 { margin: 0 0 8px; font-size: 13px; }
+.qv-pop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.qv-pop-grid > [hidden] { display: none; }
+.qv-pop-grid > .qv-wide { grid-column: 1 / -1; }
+.qv-pop .qv-note { margin-top: 10px; }
+/* The sparkles' settings in the Main's popover. */
+/* Fade, Swap, Blackout and Sparkles share one row. */
+.qv-main-buttons { flex-wrap: nowrap; }
+/* The Output pane's randomizer: its switches, then its waits, a row each. */
+.qv-random-row > * { flex: 0 1 auto; }
+.qv-wait-row { flex-wrap: nowrap; }
+.qv-wait-row > .qv-field { flex: 1 1 0; }
+.qv-main-buttons > * { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+/* As its neighbours, not a small button. */
+.qv-main-buttons > .qv-more { align-self: auto; margin-top: 10px; padding-top: 8px; padding-bottom: 8px; min-height: 0; font-size: 13px; }
+.qv-sparkles label { display: block; font-size: 12px; margin: 0 0 8px; }
+.qv-sparkles label.check { display: flex; gap: 6px; align-items: center; }
+.qv-sparkles input[type="range"], .qv-sparkles select { width: 100%; }
+.qv-hue-head { display: flex; gap: 4px; align-items: center; }
+.qv-follow { display: flex; gap: 3px; align-items: center; margin: 0 0 0 auto; font-size: 11px; white-space: nowrap; }
+.qv-follow input { margin: 0; }
+.qv-note { font-size: 11px; color: var(--muted); margin: 0; }
+.qv-params { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 4px 8px; }
+.qv-params .param-section { display: contents; }
+.qv-params label { font-size: 11px; margin: 0; }
+.qv-params button { grid-column: 1 / -1; justify-self: start; }
+/* A channel's modifiers (channel-tags.js), under its name. */
+.qv-tags { display: flex; flex-wrap: wrap; gap: 4px; min-height: 18px; align-items: center; }
+/* Read in the same order on both sides; on the right, against the outer edge. */
+.layout-mirror .qv-tags { justify-content: flex-end; }
+.qv-tag {
+  font-size: 11px; line-height: 16px; padding: 0 6px; border: 1px solid var(--line); border-radius: 9px;
+  color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; cursor: default;
+}
+.qv-preview {
+  display: block; flex: 1 1 0; min-height: 40px; width: 100%; object-fit: contain; image-rendering: pixelated;
+  background: #05070a; border: 1px solid var(--line); border-radius: 6px;
+}
+.qv-input .qv-preview { min-height: 15%; }
+button.qv-small { min-height: 26px; padding: 2px 9px; font-size: 11px; color: var(--muted); margin: 0; }
+button.qv-small:hover { color: var(--text); border-color: var(--muted); }
+button.qv-primary { border-color: var(--accent); color: var(--accent); }
+button.qv-danger { border-color: var(--danger); color: var(--danger); }
+button.qv-danger.qv-on { background: var(--danger); color: var(--bg); }
+.qv-strip { display: flex; gap: 10px; align-items: center; }
+.qv-strip > .qv-preview { flex: 0 0 18%; min-height: 0; aspect-ratio: 4 / 3; height: auto; }
+.qv-strip-lines { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.qv-line { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.qv-line > .qv-field { flex: 1 1 auto; }
+.qv-label { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.layout-mirror .qv-label { align-items: flex-end; }
+.qv-buttons { display: flex; gap: 4px; }
+.qv-fader { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-weight: 700; font-size: 13px; flex: 2 1 40%; min-width: 0; }
+.qv-fader input { width: 100%; margin: 0; }
+.qv-master-fader { flex: 0 0 auto; font-size: 14px; }
+.qv-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; margin: 0; gap: 2px; }
+.qv-seg label { display: flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 8px; border-radius: 999px; color: var(--muted); margin: 0; cursor: pointer; }
+.qv-seg label:has(input:checked) { background: var(--line); color: var(--text); }
+.qv-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.qv-monitors { flex: 1 1 0; min-height: 0; display: flex; gap: 8px; }
+.qv-monitor { margin: 0; flex: 1 1 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; }
+.qv-monitor[hidden] { display: none; }
+.qv-minis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.qv-mini-box { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qv-mini-box figcaption { font-size: 11px; color: var(--muted); }
+.qv-mini { display: block; width: 100%; height: 44px; background: #05070a; border: 1px solid var(--line); border-radius: 4px; image-rendering: pixelated; }
+.qv-tempo { font-size: 12px; color: var(--muted); }
+.layout-stacked .qv-preview { flex: 0 0 auto; aspect-ratio: 4 / 3; }
+.layout-stacked .qv-monitors { flex: 0 0 auto; }

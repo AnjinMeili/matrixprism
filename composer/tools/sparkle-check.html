@@ -1,0 +1,119 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sparkle check</title>
+<!-- Loaded by tools/check-sparkles.mjs in headless Chrome. Draws the
+     compositor's sparkles (SPARKLE_GLSL in sparkle.js) for several sets of
+     hits and settings, and compares every pixel with sparkleLight(), the
+     JavaScript reference beside it. -->
+<pre id="out">running</pre>
+<script type="module">
+const lines = [];
+try {
+  const { SPARKLE_GLSL, SPARKLE_NOISE_SIZE, SparkleField, sparkleLight, sparkleNoise } = await import('./sparkle.js');
+  // Each case: hits as [time, strength, place], the time drawn, settings,
+  // hue and air.
+  const hits = [[0.9, 1, 0.2], [0.95, 0.4, 0.9], [0.97, 0.7, 0.5], [0.99, 1, 0.8], [0.6, 0.9, 0.1]];
+  const cases = [
+    { name: 'stars, white', at: 1, settings: { shape: 'star', colour: 'white' } },
+    { name: 'points, gold to ice', at: 1, settings: { shape: 'point', colour: 'place', density: 1 } },
+    { name: 'stars, key colour, long', at: 1.2, settings: { colour: 'key', length: 1 }, hue: 0.3 },
+    { name: 'air twinkle only', at: 50.37, hits: [], settings: { twinkle: 1 }, air: 0.45 },
+    { name: 'air twinkle past its wrap', at: 1000.1, hits: [], settings: { twinkle: 1, colour: 'place' }, air: 0.6 },
+    { name: 'off', at: 1, settings: { enabled: false } },
+    { name: 'along edges of a ring and a line', at: 1, settings: { placement: 'edges', density: 1 } },
+    { name: 'on bright shapes, with the air', at: 1, settings: { placement: 'light', density: 1, twinkle: 1 }, air: 0.5 },
+  ];
+  // The picture the placements read: a dim gradient with a bright ring and a
+  // diagonal line, as RGBA bytes with rows from the bottom.
+  const picture = (w, h) => {
+    const pixels = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; ++y)
+      for (let x = 0; x < w; ++x) {
+        const r = Math.hypot(x - w / 2, y - h / 2), ring = Math.abs(r - Math.min(w, h) / 3) < 2;
+        const line = Math.abs(x - y) < 1.5;
+        const at = (y * w + x) * 4;
+        pixels[at] = ring ? 255 : line ? 40 : Math.round(30 * x / w);
+        pixels[at + 1] = ring ? 200 : line ? 220 : 20;
+        pixels[at + 2] = ring ? 80 : line ? 255 : 40;
+        pixels[at + 3] = 255;
+      }
+    return { width: w, height: h, pixels };
+  };
+  for (const [w, h] of [[256, 192], [64, 64], [320, 80]]) {
+    for (const c of cases) {
+      const field = new SparkleField();
+      for (const [time, strength, place] of c.hits ?? hits)
+        field.add({ highHits: 1, highStrength: strength, highPlace: place }, time);
+      const settings = { enabled: true, amount: 0.9, density: 0.6, length: 0.4, shape: 'star', colour: 'white',
+        twinkle: 0, ...c.settings };
+      const u = field.uniforms(c.at, settings, c.hue ?? 0, c.air ?? 0);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+      const make = (type, source) => {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+          throw new Error(gl.getShaderInfoLog(shader));
+        return shader;
+      };
+      const program = gl.createProgram();
+      gl.attachShader(program, make(gl.VERTEX_SHADER,
+        'attribute vec2 a; void main() { gl_Position = vec4(a, 0.0, 1.0); }'));
+      gl.attachShader(program, make(gl.FRAGMENT_SHADER,
+        `precision highp float;\nuniform vec2 u_res;\n${SPARKLE_GLSL}\nvoid main() { gl_FragColor = vec4(min(sparkles(floor(gl_FragCoord.xy)), 1.0), 1.0); }`));
+      gl.linkProgram(program);
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      const position = gl.getAttribLocation(program, 'a');
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform4fv(gl.getUniformLocation(program, 'u_hits'), u.hits);
+      gl.uniform4fv(gl.getUniformLocation(program, 'u_sparkle'), u.sparkle);
+      gl.uniform4fv(gl.getUniformLocation(program, 'u_sparkle_air'), u.air);
+      gl.uniform3fv(gl.getUniformLocation(program, 'u_sparkle_tint'), u.tint);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SPARKLE_NOISE_SIZE, SPARKLE_NOISE_SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+        sparkleNoise());
+      for (const name of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, name, gl.NEAREST);
+      for (const name of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, name, gl.CLAMP_TO_EDGE);
+      gl.uniform1i(gl.getUniformLocation(program, 'u_sparkle_noise'), 0);
+      const frame = picture(w, h);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, frame.pixels);
+      for (const name of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, name, gl.NEAREST);
+      for (const name of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, name, gl.CLAMP_TO_EDGE);
+      gl.uniform1i(gl.getUniformLocation(program, 'u_features'), 1);
+      gl.uniform2f(gl.getUniformLocation(program, 'u_res'), w, h);
+      gl.viewport(0, 0, w, h);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      const pixels = new Uint8Array(w * h * 4);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      // Float rounding in exp and cos may move a level by one; more is a fault.
+      let wrong = 0, lit = 0, near = 0, first = '';
+      for (let y = 0; y < h; ++y) {
+        for (let x = 0; x < w; ++x) {
+          const want = sparkleLight(x, y, u, frame).map((v) => Math.round(Math.min(1, v) * 255));
+          const at = (y * w + x) * 4;
+          const got = [pixels[at], pixels[at + 1], pixels[at + 2]];
+          if (want.some((v) => v > 0)) ++lit;
+          const off = Math.max(...want.map((v, i) => Math.abs(v - got[i])));
+          if (off === 1) ++near;
+          if (off > 1 && !wrong++) first = `; first at ${x},${y}: wanted ${want}, got ${got}`;
+        }
+      }
+      const empty = c.settings.enabled !== false && lit === 0;
+      lines.push(`${wrong || empty ? 'FAIL' : 'ok  '} ${w}x${h} ${c.name}: ${lit} pixels lit, ${wrong} differ, ` +
+        `${near} by one level${empty ? '; nothing lit' : ''}${first}`);
+    }
+  }
+} catch (error) {
+  lines.push(`FAIL page: ${error.message}`);
+}
+document.getElementById('out').textContent = lines.join('\n');
+</script>

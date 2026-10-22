@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MatrixPrism</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>MatrixPrism</h1>
+    <nav class="views" aria-label="Control views">
+      <button type="button" data-view-button="patterns" aria-pressed="true">Patterns</button>
+      <button type="button" data-view-button="quad" aria-pressed="false">Mixer</button>
+      <button type="button" data-view-button="playlist" aria-pressed="false">Playlist</button>
+      <button type="button" data-view-button="setup" aria-pressed="false">Setup</button>
+      <button type="button" data-view-button="monitor" aria-pressed="false">Monitor</button>
+    </nav>
+    <span id="connection" class="pill">server: connecting…</span>
+    <span id="status" class="pill">idle</span>
+    <button id="stream" type="button" class="primary">Start streaming</button>
+  </header>
+
+  <section class="recording-bar" aria-label="Preview recording">
+    <button id="record" type="button" title="Record the composed preview with the selected live audio input">Record</button>
+    <label>Encoder <select id="recording-encoder">
+      <option value="software">Software H.264</option>
+      <option value="hardware">Mac hardware H.264</option>
+    </select></label>
+    <output id="recording-status" role="status">Not recording</output>
+    <a id="recording-download" hidden>Download MP4</a>
+  </section>
+
+  <main>
+    <section class="stage">
+      <div class="preview-frame">
+        <canvas id="preview" width="256" height="192" aria-label="Matrix preview"></canvas>
+      </div>
+      <div class="stats" id="stats">render 0 fps · sent 0 fps · 0 packets/s</div>
+      <p id="error" class="error" role="alert"></p>
+      <p id="notice" class="notice" role="status"></p>
+      <h2>Patterns <small>← / → to switch</small></h2>
+      <div id="patterns" class="pattern-grid"></div>
+      <p id="pattern-help" class="hint"></p>
+    </section>
+
+    <aside class="panel">
+      <div data-view="patterns">
+
+
+        <div id="media-controls" hidden>
+          <fieldset>
+            <legend>Media Player</legend>
+            <label>Image, animated GIF or video
+              <input id="media-file" type="file" accept="image/*,video/*">
+            </label>
+            <output id="media-info" class="hint">No media loaded</output>
+            <label>Resize <select id="media-fit"></select></label>
+            <button id="media-clear" type="button">Remove media</button>
+            <div class="row">
+              <button id="media-folder" type="button">Choose folder…</button>
+              <button id="media-folder-clear" type="button">Forget folder</button>
+            </div>
+            <input id="media-folder-input" type="file" webkitdirectory multiple hidden>
+            <output id="media-folder-info" class="hint">No folder chosen</output>
+            <button id="media-folder-reopen" type="button" hidden>Reopen folder</button>
+            <button id="media-random" type="button">Random file from folder</button>
+            <p class="hint">A folder gives the randomizer a set of files to choose from, including those in its subfolders. While the Media Player is on a layer, the randomizer's "Media Player file from the folder" item changes the file on its own timer, and a new file is chosen whenever the randomizer switches a layer to the Media Player. The folder is read where it is and nothing is copied.</p>
+            <p class="hint">The file is scaled to the panel size and stays in this browser; it is kept for the next visit. Video plays muted and loops. Formats depend on the browser. Hue shift, brightness, gamma, the mixer and overlays all apply.</p>
+          </fieldset>
+        </div>
+
+        <div id="spectrum-controls" hidden>
+          <fieldset>
+            <legend>Spectrum Lab</legend>
+            <output id="spectrum-info" class="hint"></output>
+            <div id="spectrum-fields"></div>
+            <p class="hint">Fractional-octave bands are anchored at 1 kHz; their count follows the selected frequency range. FFT size sets real resolution, not the number of display bars. Larger FFTs resolve bass better but react more slowly.</p>
+            <p class="hint">Positive slope boosts highs relative to 1 kHz. Analysis gain is separate from Reactivity. Ballistics and peak hold follow real audio time, not animation Speed. Curves are visual interpolation, not extra frequency resolution.</p>
+            <p class="hint">Levels are relative digital FFT magnitudes, not calibrated sound pressure. Web Audio uses a Blackman window. Bands narrower than a bin share unresolved information. Maximum frequency is capped at the input Nyquist limit.</p>
+          </fieldset>
+        </div>
+
+        <div id="flock-controls" hidden>
+          <fieldset>
+            <legend>Aurora Flock</legend>
+            <label class="check"><input id="flock-count-auto" type="checkbox"> Automatic flock count</label>
+            <label>Bird count
+              <input id="flock-count" type="number" min="1" max="256" step="1" required>
+            </label>
+            <p class="hint">Editing the count turns off its automatic setting. Count excludes the contrasting predator.</p>
+          </fieldset>
+        </div>
+
+        <div id="aurora-controls" hidden>
+          <fieldset>
+            <legend>Ported pattern look</legend>
+            <label class="check"><input id="aurora-dot-auto" type="checkbox"> Automatic dot size</label>
+            <label>Dot diameter / line width <output id="aurora-dot-value"></output>
+              <input id="aurora-dot" type="range" min="1" max="32" step="0.5">
+            </label>
+            <p class="hint">Size is in panel pixels for Aurora dots/lines and Fibonacci dots. Full-field Mandala and Fire do not use dots. Editing turns off automatic sizing.</p>
+            <label>Palette <select id="pattern-palette"></select></label>
+            <label class="check"><input id="palette-cycle" type="checkbox"> Cycle gradient palettes every 10 seconds</label>
+            <p class="hint">Palette changes blend over two simulation seconds. Applies to the Aurora and Fibonacci ports, not the audio shaders.</p>
+          </fieldset>
+        </div>
+
+        <fieldset id="param-controls" hidden>
+          <legend>Pattern settings</legend>
+          <div id="param-fields"></div>
+          <p class="hint">This pattern's own settings, kept for it alone. Hover over one for what it does.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Look</legend>
+          <label>Brightness <output id="brightness-value"></output>
+            <input id="brightness" type="range" min="0" max="1" step="0.01">
+          </label>
+          <label>Gamma <output id="gamma-value"></output>
+            <input id="gamma" type="range" min="1" max="2.8" step="0.05">
+          </label>
+          <p id="receiver-note" class="hint"></p>
+          <label>Speed <output id="speed-value"></output>
+            <input id="speed" type="range" min="0" max="3" step="0.05">
+          </label>
+          <label>Hue shift <output id="hue-value"></output>
+            <input id="hue" type="range" min="0" max="1" step="0.01">
+          </label>
+          <label>Frame rate <output id="fps-value"></output>
+            <input id="fps" type="range" min="10" max="60" step="1">
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Auto cycle</legend>
+          <label class="check"><input id="auto-cycle" type="checkbox"> Change pattern automatically</label>
+          <label>Every <output id="cycle-value"></output>
+            <input id="cycle" type="range" min="5" max="300" step="5">
+          </label>
+          <label>Crossfade <output id="fade-value"></output>
+            <input id="fade" type="range" min="0" max="10" step="0.5">
+          </label>
+        </fieldset>
+      </div>
+
+      <div data-view="playlist" hidden>
+        <fieldset id="playlist-controls">
+          <legend>Playlists</legend>
+          <div id="playlist-fields"></div>
+          <p class="hint">An entry is a saved look: the layer A pattern, the mixer state (layer B's pattern, blend and amount), both layers' shape and region, each layer's Pattern settings, and the look settings: hue, speed, palette and palette cycling, key colours, flock count, dot size, Sparkles and Spectrum Lab. Set the screen up the way you want it, then use Add current look, or Hotsave below. While a playlist plays it replaces Auto cycle; changing pattern crossfades as usual, and the rest switches with it.</p>
+          <p class="hint">Brightness, gamma and frame rate are not stored, as they suit the panel rather than the look. Entries saved before 2026-10-16 keep only the patterns, mixer and shapes, and leave the rest as it is. Playlists are kept in this browser with the other settings.</p>
+        </fieldset>
+
+        <fieldset id="hotsave-controls">
+          <legend>Hotsave</legend>
+          <div class="row">
+            <label>Key <input id="hotsave-key" type="text" maxlength="1" size="2" autocomplete="off" required></label>
+            <label>Save to <select id="hotsave-playlist"></select></label>
+          </div>
+          <button id="hotsave-now" type="button">Hotsave now</button>
+          <p class="hint">Press the key anywhere on the page, except while typing in a field, to add the look on screen to a playlist as a new entry named for the time, with everything an entry keeps. It goes to a playlist called Hotsave, made on first use, unless another is chosen. Whatever is playing carries on. The key is one letter or digit; T taps the tempo.</p>
+        </fieldset>
+
+        <fieldset id="randomizer-controls">
+          <legend>Randomizer</legend>
+          <label class="check"><input id="randomizer-enabled" type="checkbox"> Change things at random</label>
+          <div class="row">
+            <label>Shortest wait <input id="randomizer-min" type="number" min="1" max="3600" step="1" required></label>
+            <label>Longest wait <input id="randomizer-max" type="number" min="1" max="3600" step="1" required></label>
+            <label>Counted in <select id="randomizer-unit"></select></label>
+          </div>
+          <div id="randomizer-tracks"></div>
+          <output id="randomizer-status" class="hint"></output>
+          <p class="hint">Each ticked item changes on its own timer, waiting a new random time between the shortest and longest wait after every change, counted in seconds, or in beats or bars of the tempo, when a wait is a whole number of them and ends on a beat or a bar line, so the layers and their attributes drift apart rather than changing together. Layer B items only run while the mixer is on. A lone layer keeps the whole panel; regions are only randomized while the mixer is on. The Mixer's Right works the same way: input C always, input D and Right's blend while Right is mixing (its fader moved or a blend chosen).</p>
+          <p class="hint">The randomizer pauses while a playlist is playing, and takes the place of Auto cycle when it is changing layer A's pattern.</p>
+        </fieldset>
+      </div>
+
+      <div data-view="monitor" hidden>
+        <fieldset>
+          <legend>Beat graph</legend>
+          <canvas id="monitor-graph" width="256" height="192" aria-label="Beat graph of the live input"></canvas>
+          <div class="row">
+            <button type="button" id="monitor-tap" title="Tap in time with the music: two or more taps set the manual tempo">Tap (T)</button>
+            <button type="button" id="monitor-downbeat" title="Mark this moment as the first beat of the bar; the tempo stays the tracker's">Downbeat (D)</button>
+          </div>
+          <output id="monitor-fold-bpm" class="hint">Following the clock</output>
+          <div class="row" id="monitor-nudge">
+            <button type="button" data-nudge="-1" title="Fold at 1 BPM slower">−1</button>
+            <button type="button" data-nudge="-0.1" title="Fold at 0.1 BPM slower">−0.1</button>
+            <button type="button" data-nudge="0.1" title="Fold at 0.1 BPM faster">+0.1</button>
+            <button type="button" data-nudge="1" title="Fold at 1 BPM faster">+1</button>
+          </div>
+          <div class="row">
+            <button type="button" data-phase="-0.125" title="Move the bar line an eighth of a beat earlier">◀ Bar line</button>
+            <button type="button" data-phase="0.125" title="Move the bar line an eighth of a beat later">Bar line ▶</button>
+          </div>
+          <div class="row">
+            <button type="button" id="monitor-send" class="primary" title="Give the tempo and bar line to the beat tracker, which goes on following the music from there">Send to the tracker</button>
+            <button type="button" id="monitor-use" title="Hold the clock at this tempo and bar line, as the manual tempo, whatever the music does">Make it the manual tempo</button>
+          </div>
+          <div class="row">
+            <button type="button" id="monitor-follow">Follow the clock</button>
+          </div>
+          <p class="hint" data-help>The live input folded by the beat clock's bar: each column is one bar, newest at the right, with marks at each beat. Straight lines mean the clock keeps time with the music; sloping lines, its tempo is off; level lines between the marks, its phase is off. It keeps building whatever pattern is showing.</p>
+          <p class="hint" data-help>To find the tempo by eye, nudge: the last minutes of sound are folded again at the tempo shown, at one steady tempo across the picture, until the lines stand level. The bar line moves the rows, so the first beat sits on the top mark. <b>Send to the tracker</b> gives the tempo and bar line to the beat tracker, which goes on following the music from there and keeps them until the music says otherwise; <b>Make it the manual tempo</b> holds the clock there whatever the music does (Detect hands it back); <b>Follow the clock</b> goes back to its own graph.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Tempo</legend>
+          <canvas id="monitor-trace" width="300" height="110" aria-label="Tempo over the last three minutes"></canvas>
+          <output id="monitor-readout" class="hint"></output>
+          <p class="hint" data-help>The last three minutes: blue while a tempo is detected, grey while the manual tempo is in charge; yellow ticks are onsets from the chosen beat source.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Key</legend>
+          <canvas id="monitor-key-wheel" width="320" height="320" aria-label="Camelot wheel of the musical key: click a key to choose it"></canvas>
+          <output id="musical-key" class="hint">Select a live audio input</output>
+          <p id="compatible-keys" class="hint">No confident key yet</p>
+          <div class="row">
+            <button type="button" id="key-detect" title="Forget the key you chose and let the detector decide">Detect</button>
+          </div>
+          <label class="check"><input id="key-lock" type="checkbox"> Keep the key I choose whatever the music says</label>
+          <label class="check"><input id="key-colours" type="checkbox"> Use musical key for colours</label>
+          <label class="check"><input id="key-hold" type="checkbox"> Keep the last key until another is found</label>
+          <p class="hint" data-help>The Camelot wheel: minor keys (A) inside, major (B) outside, 12 at the top. Every key is shaded by how well it fits the last several seconds of pitched music, brighter the better; the key in use is lit and ringed in white, its mixing neighbours (one either side, and the other ring at the same number) outlined, and a dot marks the detector's own best when it hears another key.</p>
+          <p class="hint" data-help>Click a key to say what you hear. The detector takes it and keeps it until the music clearly says another key for eight seconds; the ring is dashed while the key is yours. With "Keep the key I choose" ticked it stays whatever the music says. Detect forgets it and lets the detector decide again.</p>
+          <p class="hint" data-help>A rolling major/minor estimate: allow several seconds of pitched music. Silence, percussion and ambiguous harmony may not give a key. Key colour adds to the manual hue shift.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Log</legend>
+          <label class="check"><input id="monitor-record" type="checkbox"> Record</label>
+          <div class="row">
+            <button id="monitor-download" type="button">Download CSV</button>
+            <button id="monitor-clear" type="button">Clear</button>
+          </div>
+          <output id="monitor-log-status" class="hint"></output>
+          <p class="hint" data-help>Ten rows a second while recording: time, beat source, BPM, whether detected, confidence, beat position, onsets, bass, mid, treble, level and flux. Up to an hour is kept; the file stays on this computer.</p>
+        </fieldset>
+      </div>
+
+      <div data-view="setup" hidden>
+        <fieldset>
+          <legend>Matrix</legend>
+          <div class="row">
+            <label>Receiver <select id="receiver-list"></select></label>
+            <button id="receiver-find" type="button">Find receivers</button>
+          </div>
+          <output id="receiver-status" class="hint"></output>
+          <label>Host
+            <input id="host" placeholder="wled-xxxxxx.local or 192.168.1.50" spellcheck="false">
+          </label>
+          <div class="row">
+            <label>Width <input id="width" type="number" min="1" max="2048"></label>
+            <label>Height <input id="height" type="number" min="1" max="2048"></label>
+            <label>DDP port <input id="ddp-port" type="number" min="1" max="65535"></label>
+          </div>
+          <label>Most frames a second sent <input id="max-fps" type="number" min="1" max="60" step="1" placeholder="No limit"></label>
+          <p class="hint">Kept for each receiver, with its brightness and gamma. The page still draws at the frame rate set under Look and sends fewer of those frames, which eases a receiver that struggles to keep up, such as a Matrix Portal S3 whose Wi-Fi suffers from its own display refresh. Leave it empty to send every frame.</p>
+          <button id="detect" type="button">Detect size</button>
+          <label class="check"><input id="black-on-stop" type="checkbox"> Send black frame when stopping</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Audio</legend>
+          <label>Input
+            <select id="audio-source"></select>
+          </label>
+          <canvas id="meter" width="300" height="70" aria-label="Audio spectrum"></canvas>
+          <output id="audio-channels" class="hint"></output>
+          <button id="audio-retake" type="button" hidden>Take the input back</button>
+          <label>Reactivity <output id="gain-value"></output>
+            <input id="gain" type="range" min="0" max="4" step="0.05">
+          </label>
+          <label>Tempo
+            <select id="tempo-mode"></select>
+          </label>
+          <label>Beat from
+            <select id="tempo-source"></select>
+          </label>
+          <div class="row">
+            <label>Manual tempo (BPM) <input id="tempo-manual" type="number" min="40" max="240" step="0.01" required></label>
+            <label>Changes <select id="tempo-quantize"></select></label>
+          </div>
+          <output id="tempo-readout" class="hint"></output>
+          <p class="hint">The tempo drives each input's spin and pulse (Mixer, each input's More…), and can hold pattern changes from Auto cycle, the playlist and the randomizer until the next beat or bar.</p>
+          <label>Mark Estes audio patterns in silence
+            <select id="silence-mode">
+              <option value="standin">Animate on their own (the sketch's stand-in)</option>
+              <option value="quiet">Stay quiet (show the silence)</option>
+            </select>
+          </label>
+          <p class="hint">Silence means nothing heard for five seconds, or the input set to None.</p>
+          <p class="hint">The musical key, its wheel and its settings are on the Monitor view.</p>
+          <p class="hint">For music playing on this computer, route it through a loopback
+            device such as BlackHole and choose that input.</p>
+        </fieldset>
+
+        <fieldset id="overlay-controls">
+          <legend>Persistent overlays</legend>
+          <div id="overlay-fields"></div>
+          <p class="hint">Clocks, dates and text stay above every pattern and crossfade, in the preview and LED output. Elements later in the list draw on top. Position, offsets and text size use native panel pixels. Oversized elements are clipped at the panel edges.</p>
+          <p class="hint">Clocks use this computer's wall time even at Speed zero. Overlay colours ignore pattern hue; global brightness and gamma still apply. Set background opacity to zero for transparent text. Up to 16 elements; settings persist across reloads.</p>
+        </fieldset>
+
+        <fieldset id="version-controls">
+          <legend>Version</legend>
+          <output id="version-info" class="hint">Asking the server…</output>
+          <p class="hint">The copy of the composer this page came from: its version, and the git branch, commit and folder it is running from. Reload the page after changing branch.</p>
+        </fieldset>
+      </div>
+    </aside>
+  </main>
+
+  <!-- The Mixer, the quad mixer (T16): built by quad-view.js when first shown, and
+       shown in place of the rest below the header. -->
+  <div id="quad-view" aria-label="Mixer"><div id="quad-layout"></div></div>
+  <!-- The sparkles' settings, wired by app.js and shown in the Mixer's Main
+       pane, in its Sparkles… popover: one place for sparkles, the final mix
+       out (Anjin, 2026-10-20). -->
+  <div hidden>
+    <div id="sparkle-controls" class="qv-sparkles">
+      <label class="check"><input id="sparkle-enabled" type="checkbox"> Sparkle on the highs, over the final mix</label>
+      <label>Amount <output id="sparkle-amount-value"></output>
+        <input id="sparkle-amount" type="range" min="0" max="1" step="0.01">
+      </label>
+      <label>Density <output id="sparkle-density-value"></output>
+        <input id="sparkle-density" type="range" min="0" max="1" step="0.01">
+      </label>
+      <label>Length <output id="sparkle-length-value"></output>
+        <input id="sparkle-length" type="range" min="0" max="1" step="0.01">
+      </label>
+      <label>Twinkle with the air <output id="sparkle-twinkle-value"></output>
+        <input id="sparkle-twinkle" type="range" min="0" max="1" step="0.01">
+      </label>
+      <label>Shape <select id="sparkle-shape"></select></label>
+      <label>Colour <select id="sparkle-colour"></select></label>
+      <label>Placement <select id="sparkle-placement"></select></label>
+      <p class="hint">Hi-hats, shakers and cymbals set off points of light over the final mix, under the overlays; the ⓘ beside each setting says what it does. Needs an audio input or the simulated signal.</p>
+    </div>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

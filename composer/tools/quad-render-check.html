@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Quad render check</title>
+<!-- Loaded by tools/check-quad-render.mjs in headless Chrome. Checks the
+     renderer's quad mixer paths (Renderer.renderQuad, T16 step 3) that have
+     no counterpart in the one-pair renderer: the master at Right and half
+     way, input trims, the Gated preview, blackout, and one stateful
+     instance per input. Results go in the <pre> as JSON. -->
+<canvas id="canvas"></canvas>
+<pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById('out');
+try {
+  const W = 64, H = 48;
+  const { PATTERNS } = await import('./patterns.js');
+  const { Renderer } = await import('./renderer.js');
+  const { AudioAnalyzer } = await import('./audio.js');
+  const { SHAPE_DEFAULTS } = await import('./shape.js');
+  const { SPARKLE_DEFAULTS } = await import('./sparkle.js');
+  const { SPECTRUM_DEFAULTS } = await import('./spectrum-plot.js');
+  const { blendModeIndex, blendPixel, trimPixel } = await import('./mixer.js');
+  const find = (id) => PATTERNS.find((p) => p.id === id);
+  const renderer = new Renderer(document.getElementById('canvas'));
+  renderer.setSize(W, H);
+  const audio = new AudioAnalyzer();
+  audio.startSimulated();
+  const features = audio.update(1 / 30, 1);
+  const base = {
+    previousPattern: null, mix: 1, layer: null, shape: SHAPE_DEFAULTS, beatPosition: 1, changeClock: 1, time: 3,
+    auroraTime: 3, previousTime: 3, audio: features, audioTime: 1, spectrum: audio.spectrum,
+    spectrumLeft: audio.spectrumLeft, spectrumRight: audio.spectrumRight, wave: audio.wave, hue: 0, manualHue: 0,
+    musicalKey: null, brightness: 1, gamma: 1, flock: { count: null }, auroraDotSize: null, mediaFit: 'cover',
+    silenceMode: 'quiet', paletteId: 'original', spectrumOptions: SPECTRUM_DEFAULTS, rawSpectrum: audio.plotInput,
+    patternParams: {}, overlays: { enabled: false, elements: [] }, sparkles: SPARKLE_DEFAULTS, wallTime: 0,
+  };
+  const input = (id, extra = {}) => ({ pattern: find(id), params: {}, shape: SHAPE_DEFAULTS, time: 3, ...extra });
+  const quad = (inputs, master, extra = {}) => renderer.renderQuad({
+    ...base, ...extra, inputs: { a: null, b: null, c: null, d: null, ...inputs },
+    pairs: { left: { mode: -1, amount: 0 }, right: { mode: -1, amount: 0 } },
+    master: { mode: blendModeIndex('crossfade'), position: 0, blackout: false, ...master },
+  }).slice();
+  const worst = (x, y) => x.reduce((m, v, i) => Math.max(m, Math.abs(v - y[i])), 0);
+  const result = {};
+  // Left alone at position 0 (one pass) against Right alone at position 1
+  // (pairs, then the master), with the same pattern: the same picture.
+  const leftOnly = quad({ a: input('plasma') }, { position: 0 });
+  const rightOnly = quad({ c: input('plasma') }, { position: 1 });
+  result.rightAtFull = { worst: worst(leftOnly, rightOnly), lit: leftOnly.filter((v) => v > 16).length / leftOnly.length };
+  // Half way: the master's crossfade of the two pairs, against the
+  // reference blend of each drawn alone.
+  const tunnel = quad({ a: input('tunnel') }, { position: 0 });
+  const half = quad({ a: input('plasma'), c: input('tunnel') }, { position: 0.5 });
+  let worstHalf = 0;
+  for (let i = 0; i < half.length; i += 3) {
+    const expect = blendPixel('crossfade', [0, 1, 2].map((k) => leftOnly[i + k] / 255),
+      [0, 1, 2].map((k) => tunnel[i + k] / 255), 0.5);
+    for (let k = 0; k < 3; ++k) worstHalf = Math.max(worstHalf, Math.abs(half[i + k] - Math.round(expect[k] * 255)));
+  }
+  result.halfWay = { worst: worstHalf };
+  // Trims on input A against the reference.
+  const trimCheck = (brightness, gamma) => {
+    const got = quad({ a: input('plasma', { brightness, gamma }) }, { position: 0 });
+    let w = 0;
+    for (let i = 0; i < got.length; i += 3) {
+      const expect = trimPixel([0, 1, 2].map((k) => leftOnly[i + k] / 255), brightness, gamma);
+      for (let k = 0; k < 3; ++k) w = Math.max(w, Math.abs(got[i + k] - Math.round(Math.min(1, expect[k]) * 255)));
+    }
+    return w;
+  };
+  result.trim = { brightnessHalf: trimCheck(0.5, 1), gammaTwo: trimCheck(1, 2), both: trimCheck(0.7, 0.6) };
+  // The preview with the live master's settings is the live picture.
+  const live = quad({ a: input('plasma'), c: input('tunnel') }, { position: 0.3 },
+    { preview: { mode: blendModeIndex('crossfade'), position: 0.3 } });
+  const gl = renderer.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.target('preview').framebuffer);
+  const rgba = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  let worstPreview = 0;
+  for (let y = 0; y < H; ++y) for (let x = 0; x < W; ++x) for (let k = 0; k < 3; ++k)
+    worstPreview = Math.max(worstPreview, Math.abs(rgba[((H - 1 - y) * W + x) * 4 + k] - live[(y * W + x) * 3 + k]));
+  result.preview = { worst: worstPreview };
+  // Blackout.
+  const black = quad({ a: input('plasma') }, { blackout: true });
+  result.blackout = { max: Math.max(...black) };
+  // One stateful pattern on A and C: two instances.
+  const stateful = PATTERNS.find((p) => p.createInstance && !p.isReady && !p.manualOnly && !p.spectrumPlot && !p.needsAudio);
+  quad({ a: input(stateful.id), c: input(stateful.id) }, { position: 0.5 });
+  result.instances = [...renderer.auroraInstances.keys()].sort();
+  result.statefulId = stateful.id;
+  out.textContent = JSON.stringify(result, null, 1);
+} catch (error) {
+  out.textContent = `FAIL ${error.stack}`;
+}
+</script>

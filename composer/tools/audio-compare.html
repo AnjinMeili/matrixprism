@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Audio comparison</title>
+<pre id="out">running</pre>
+<script>
+// A module that fails to load never runs its own error handling; report it.
+addEventListener('error', (event) => fetch('/result', { method: 'POST', body: `FAIL ${event.message}` }));
+</script>
+<script src="/tools/vendor/meyda/meyda.min.js"></script>
+<script type="module">
+// Runs each synthetic test signal through the comparison's frame loop
+// (audio-frames.js) and posts every frame as JSON to /result for
+// audio-compare.mjs. Query: fps (default 30), only (ids, comma-separated),
+// source (the composer's Beat from setting, default bass).
+import { SAMPLE_RATE, catalogue } from '/tools/audio-signals.js';
+import { analyseBuffer, meydaErrors } from '/tools/audio-frames.js';
+import { loadEssentia } from '/essentia-tempo.js';
+
+const query = new URLSearchParams(location.search);
+const fps = Number(query.get('fps') || 30);
+const only = query.get('only')?.split(',');
+const source = query.get('source') || 'bass';
+const essentia = source === 'essentia' ? await loadEssentia() : null;
+const round = (value) => typeof value !== 'number' ? value :
+  Number.isFinite(value) ? Number(value.toPrecision(6)) : null;
+
+async function analyseSignal({ id, group, generate, options }) {
+  const { samples, truth } = generate(options);
+  const buffer = new AudioBuffer({ length: samples.length, numberOfChannels: 1, sampleRate: SAMPLE_RATE });
+  buffer.copyToChannel(samples, 0);
+  const rows = {};
+  await analyseBuffer(buffer, {
+    fps, beatSource: source, essentia,
+    onFrame: (values) => {
+      for (const [column, value] of Object.entries(values))
+        (rows[column] ??= []).push(round(value));
+    },
+  });
+  return { id, group, options, truth, rows };
+}
+
+async function post(body) {
+  await fetch('/result', { method: 'POST', body });
+  document.getElementById('out').textContent = 'done';
+}
+
+try {
+  const signals = catalogue().filter((signal) => !only || only.includes(signal.id));
+  if (!signals.length) throw new Error(`No signal matches ${only}`);
+  const results = [];
+  for (const signal of signals) results.push(await analyseSignal(signal));
+  await post(JSON.stringify({ fps, sampleRate: SAMPLE_RATE, userAgent: navigator.userAgent, meydaErrors, results }));
+} catch (error) {
+  await post(`FAIL ${error.stack || error}`);
+}
+</script>

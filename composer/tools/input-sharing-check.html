@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- Two live inputs at once, for check-input-sharing.mjs. -->
+<pre id="out">running</pre>
+<script type="module">
+import { AudioAnalyzer, processingLeftOn } from '/audio.js';
+const out = {};
+try {
+  const a = new AudioAnalyzer(), b = new AudioAnalyzer();
+  await a.startDevice('');
+  await b.startDevice('');
+  out.supported = Object.fromEntries(['echoCancellation', 'noiseSuppression', 'autoGainControl', 'voiceIsolation']
+    .map((k) => [k, !!navigator.mediaDevices.getSupportedConstraints()[k]]));
+  out.first = { state: a.inputState, settings: a.inputSettings, leftOn: processingLeftOn(a.inputSettings) };
+  out.second = { state: b.inputState, settings: b.inputSettings, leftOn: processingLeftOn(b.inputSettings) };
+  await new Promise((r) => setTimeout(r, 1000));
+  out.afterOneSecond = { first: a.inputState, second: b.inputState };
+  a.stop(); b.stop();
+} catch (error) { out.error = String(error); }
+fetch('/result', { method: 'POST', body: JSON.stringify(out, null, 1) });
+</script>

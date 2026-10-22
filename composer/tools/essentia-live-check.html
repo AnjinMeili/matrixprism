@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Essentia live check</title>
+<pre id="out">running</pre>
+<script>
+addEventListener('error', (event) => fetch('/result', { method: 'POST', body: `FAIL ${event.message}` }));
+</script>
+<script type="module">
+// Runs the composer's live analyser on Chrome's fake microphone with the
+// Essentia beat source, for check-essentia-live.mjs: the audio tap, the
+// worker and Essentia's WebAssembly, as the page would run them. Records
+// Essentia's state twice a second for `seconds` (query, default 20) and
+// posts the states it passed through and its tempo.
+import { AudioAnalyzer } from '/audio.js';
+import { TEMPO_DEFAULTS } from '/tempo.js';
+
+const seconds = Number(new URLSearchParams(location.search).get('seconds') || 20);
+try {
+  const audio = new AudioAnalyzer();
+  audio.setBeatSource('essentia');
+  await audio.startDevice();
+  if (audio.context.state === 'suspended') await audio.context.resume();
+  const states = [];
+  const started = performance.now();
+  await new Promise((resolve) => {
+    const timer = setInterval(() => {
+      const now = performance.now();
+      audio.update(0.5, 1.5, now / 1000);
+      audio.tempo.update(now / 1000, { ...TEMPO_DEFAULTS, source: 'essentia' });
+      const status = audio.essentiaStatus;
+      if (states[states.length - 1]?.status !== status)
+        states.push({ status, at: Math.round((now - started) / 100) / 10 });
+      if (now - started > seconds * 1000) { clearInterval(timer); resolve(); }
+    }, 500);
+  });
+  const result = { states, bpm: audio.tempo.detectedBpm, confidence: audio.tempo.confidence,
+    sampleRate: audio.context.sampleRate, contextState: audio.context.state };
+  audio.stop();
+  await fetch('/result', { method: 'POST', body: JSON.stringify(result) });
+} catch (error) {
+  await fetch('/result', { method: 'POST', body: `FAIL ${error.stack || error}` });
+}
+</script>

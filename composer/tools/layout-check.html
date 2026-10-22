@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Layout check</title>
+<!-- Loaded by tools/check-layout.mjs in headless Chrome: the default layout
+     in a wide frame and a narrow one (layout-frame.html). -->
+<iframe src="/tools/layout-frame.html?wide" width="1440" height="900"></iframe>
+<iframe src="/tools/layout-frame.html?narrow" width="600" height="900"></iframe>
+<pre id="out">running</pre>
+<script>
+const results = {};
+addEventListener('message', ({ data }) => {
+  results[data.frame.slice(1)] = data.result;
+  if (Object.keys(results).length === 2) document.getElementById('out').textContent = JSON.stringify(results, null, 1);
+});
+</script>

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Quad mixer cost</title>
+<!-- Loaded by tools/quad-cost.mjs: in headless Chrome, or opened by hand in
+     a browser with --serve. Measures what a frame of the quad mixer (T16)
+     would cost with the real Renderer, patterns and compositor: four input
+     passes, a compositor pass per pair into a submix, the master's
+     compositor pass and the read-back for the stream; with Gated, one more
+     master pass for the preview; with previews, the four inputs and two
+     submixes read back every third frame (ten times a second at 30 fps).
+     Today's frame (one pair through Renderer.render) is the baseline. Each
+     frame is timed from its first draw to gl.finish(), back to back, not
+     paced. Results are POSTed to /result as JSON. -->
+<body style="background:#0e1015;color:#e6e8ee;font:14px system-ui,sans-serif;margin:16px">
+<p id="status">Measuring… keep this tab in front until it says done.</p>
+<canvas id="canvas"></canvas>
+<pre id="out"></pre>
+<script type="module">
+const status = document.getElementById('status');
+const options = new URLSearchParams(location.search);
+const WARMUP = Number(options.get('warmup') || 30), FRAMES = Number(options.get('frames') || 90);
+const SIZES = (options.get('sizes') || '256x192,128x64,32x32').split(',').map((s) => s.split('x').map(Number));
+const WORKLOADS = {
+  shaders: ['flow', 'kaleido', 'cells', 'metaballs'],
+  mixed: ['flow', 'plasma', 'aurora-flowfield', 'tme-4'],
+  stateful: ['aurora-flowfield', 'aurora-swirl', 'tme-4', 'tme-10'],
+};
+const MODES = ['today', 'live', 'gated', 'gated+previews'];
+const result = { userAgent: navigator.userAgent, runs: [] };
+try {
+  const { PATTERNS } = await import('/patterns.js');
+  const { Renderer } = await import('/renderer.js');
+  const { AudioAnalyzer } = await import('/audio.js');
+  const { SHAPE_DEFAULTS, shapeUniforms } = await import('/shape.js');
+  const { SPARKLE_DEFAULTS } = await import('/sparkle.js');
+  const { SPECTRUM_DEFAULTS } = await import('/spectrum-plot.js');
+  const { blendModeIndex } = await import('/mixer.js');
+  const find = (id) => PATTERNS.find((p) => p.id === id) ?? (() => { throw new Error(`no pattern ${id}`); })();
+  const canvas = document.getElementById('canvas');
+  const renderer = new Renderer(canvas);
+  const gl = renderer.gl;
+  const info = gl.getExtension('WEBGL_debug_renderer_info');
+  result.gpu = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  let seed = 1;
+  Math.random = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  // The compositor's pass as Renderer.render runs it, drawn into `out`
+  // (null: the canvas): `current` with `layer` blended over it by `mode`.
+  function composite(out, current, layer, mode, amount, beat, time) {
+    const c = renderer.composite;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, out);
+    gl.viewport(0, 0, renderer.width, renderer.height);
+    gl.useProgram(c.program);
+    const bind = (unit, texture, name) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(c.uniforms[name], unit);
+    };
+    bind(0, current, 'u_current');
+    bind(1, current, 'u_previous');
+    bind(2, renderer.overlayTexture, 'u_overlay');
+    bind(3, layer ?? current, 'u_layer');
+    gl.uniform1i(c.uniforms.u_blend_mode, layer ? blendModeIndex(mode) : -1);
+    gl.uniform1f(c.uniforms.u_blend_amount, amount);
+    for (const suffix of ['a', 'b']) {
+      const s = shapeUniforms(SHAPE_DEFAULTS, renderer.width / renderer.height, beat, beat);
+      gl.uniform1i(c.uniforms[`u_shape_${suffix}`], s.shape);
+      gl.uniform1i(c.uniforms[`u_region_${suffix}`], s.region);
+      gl.uniform1i(c.uniforms[`u_outline_${suffix}`], s.outline);
+      gl.uniform2f(c.uniforms[`u_size_${suffix}`], s.sizeX, s.sizeY);
+      gl.uniform2f(c.uniforms[`u_motion_${suffix}`], s.angle, s.zoom);
+      gl.uniform1f(c.uniforms[`u_edge_${suffix}`], s.edge);
+    }
+    // Each input's trim (T16 step 3); absent before it.
+    if (c.uniforms.u_trim_a) {
+      gl.uniform2f(c.uniforms.u_trim_a, 1, 1);
+      gl.uniform2f(c.uniforms.u_trim_b, 1, 1);
+    }
+    gl.uniform2f(c.uniforms.u_res, renderer.width, renderer.height);
+    gl.uniform1f(c.uniforms.u_mix, 1);
+    gl.uniform1f(c.uniforms.u_brightness, 1);
+    const sparkle = renderer.sparkles.uniforms(time, SPARKLE_DEFAULTS, 0, 0);
+    gl.uniform4fv(c.uniforms.u_hits, sparkle.hits);
+    gl.uniform4fv(c.uniforms.u_sparkle, sparkle.sparkle);
+    gl.uniform4fv(c.uniforms.u_sparkle_air, sparkle.air);
+    gl.uniform3fv(c.uniforms.u_sparkle_tint, sparkle.tint);
+    bind(4, renderer.sparkleNoise, 'u_sparkle_noise');
+    gl.uniform1f(c.uniforms.u_gamma, 1);
+    bind(5, renderer.sparkleNoise, 'u_features');
+    gl.uniform1i(c.uniforms.u_stage, 1);
+    renderer.draw(c);
+  }
+
+  // One clock for the whole run: stateful patterns keep their instances
+  // between cases and require their time to move forward.
+  let time = 0;
+  for (const [width, height] of SIZES) {
+    renderer.setSize(width, height);
+    const targets = { inputs: [0, 1, 2, 3].map(() => renderer.createTarget()),
+      left: renderer.createTarget(), right: renderer.createTarget(), preview: renderer.createTarget() };
+    const pixels = new Uint8Array(width * height * 4);
+    for (const [workload, ids] of Object.entries(WORKLOADS)) {
+      const patterns = ids.map(find);
+      for (const mode of MODES) {
+        status.textContent = `Measuring ${width}×${height}, ${workload}, ${mode}… keep this tab in front.`;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const audio = new AudioAnalyzer();
+        audio.startSimulated();
+        const times = [];
+        let litShare = 0;
+        for (let frame = 0; frame < WARMUP + FRAMES; ++frame) {
+          const features = audio.update(1 / 30, 1);
+          time += 1 / 30;
+          const beat = time * 2;
+          const state = {
+            pattern: patterns[0], previousPattern: null, mix: 1, layer: null, shape: SHAPE_DEFAULTS,
+            beatPosition: beat, changeClock: beat, time, auroraTime: time, previousTime: time, audio: features,
+            audioTime: time, spectrum: audio.spectrum, spectrumLeft: audio.spectrumLeft,
+            spectrumRight: audio.spectrumRight, wave: audio.wave, hue: 0, manualHue: 0, musicalKey: null,
+            brightness: 1, gamma: 1, flock: { count: null }, auroraDotSize: null, mediaFit: 'cover',
+            silenceMode: 'quiet', paletteId: 'original', spectrumOptions: SPECTRUM_DEFAULTS,
+            rawSpectrum: audio.plotInput, overlays: { enabled: false, elements: [] }, wallTime: 0, patternParams: {},
+          };
+          const start = performance.now();
+          let streamed = pixels;
+          if (mode === 'today') {
+            streamed = renderer.render({ ...state, layer: { pattern: patterns[1], mode: blendModeIndex('screen'), amount: 0.5,
+              shape: SHAPE_DEFAULTS } });
+          } else {
+            renderer.uploadAudio(state.spectrum, state.wave);
+            patterns.forEach((pattern, i) => renderer.renderPattern(pattern, targets.inputs[i], time, state));
+            composite(targets.left.framebuffer, targets.inputs[0].texture, targets.inputs[1].texture, 'screen', 0.5, beat, time);
+            composite(targets.right.framebuffer, targets.inputs[2].texture, targets.inputs[3].texture, 'add', 0.5, beat, time);
+            if (mode !== 'live')
+              composite(targets.preview.framebuffer, targets.left.texture, targets.right.texture, 'equal-power', 0.7, beat, time);
+            composite(null, targets.left.texture, targets.right.texture, 'equal-power', 0.1, beat, time);
+            gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+            if (mode === 'gated+previews' && frame % 3 === 0) {
+              for (const target of [...targets.inputs, targets.left, targets.right]) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
+                gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+              }
+              gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            }
+          }
+          gl.finish();
+          if (frame >= WARMUP) times.push(performance.now() - start);
+          // The share of the streamed frame that is lit, on the last frame,
+          // to show the passes drew a picture: RGB from render(), RGBA here.
+          if (frame === WARMUP + FRAMES - 1) {
+            const step = mode === 'today' ? 3 : 4;
+            let lit = 0;
+            for (let i = 0; i < width * height * step; i += step)
+              if (Math.max(streamed[i], streamed[i + 1], streamed[i + 2]) > 16) ++lit;
+            litShare = lit / (width * height);
+          }
+        }
+        times.sort((x, y) => x - y);
+        const pick = (q) => times[Math.min(times.length - 1, Math.floor(q * times.length))];
+        result.runs.push({ size: `${width}x${height}`, workload, mode, frames: times.length,
+          medianMs: +pick(0.5).toFixed(2), p95Ms: +pick(0.95).toFixed(2),
+          meanMs: +(times.reduce((a, b) => a + b, 0) / times.length).toFixed(2), lit: +litShare.toFixed(2) });
+        audio.stop();
+      }
+    }
+    for (const target of [...targets.inputs, targets.left, targets.right, targets.preview]) renderer.deleteTarget(target);
+  }
+  status.textContent = 'Done. The results have been sent back; this tab can be closed.';
+} catch (error) {
+  result.error = String(error.stack || error);
+  status.textContent = `Failed: ${error.message}`;
+}
+document.getElementById('out').textContent = JSON.stringify(result, null, 1);
+fetch('/result', { method: 'POST', body: JSON.stringify(result) });
+</script>
+</body>
+</html>

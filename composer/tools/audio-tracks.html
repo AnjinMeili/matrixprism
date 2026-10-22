@@ -1,0 +1,200 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Audio comparison: tracks</title>
+<pre id="out">running</pre>
+<script>
+// A module that fails to load never runs its own error handling; report it.
+addEventListener('error', (event) => fetch('/result', { method: 'POST', body: `FAIL ${event.message}` }));
+</script>
+<script src="/tools/vendor/meyda/meyda.min.js"></script>
+<script type="module">
+// Runs real tracks through the comparison's frame loop (audio-frames.js), for
+// audio-tracks.mjs. Reads its list from /data/list, as [{ index, id }], and
+// each track's file from /data/<index>; decodes it at 48 kHz, as a live input
+// usually runs; and posts one summary per track to /post/track, then "done"
+// to /result. A summary keeps each change of key and tempo with its time,
+// not every frame. Query: fps (default 30), gain (default 1.5, the composer's),
+// source (the composer's Beat from setting, default bass),
+// essentia (1 to also run Essentia.js on each whole excerpt, decoded again
+// at 44.1 kHz, which its tempo extractor expects), windows (1 to also run it
+// as it would run live, on sliding windows: tempo on the last 10 s every 2 s,
+// key on the last 20 s every 4 s).
+import { analyseBuffer, meydaErrors } from '/tools/audio-frames.js';
+import { loadEssentia } from '/essentia-tempo.js';
+
+const SAMPLE_RATE = 48000;
+const query = new URLSearchParams(location.search);
+const fps = Number(query.get('fps') || 30);
+const gain = Number(query.get('gain') || 1.5);
+const source = query.get('source') || 'bass';
+// hold=N: how many live Essentia estimates must agree to change the tempo.
+const hold = query.get('hold') ? Number(query.get('hold')) : null;
+// threeTwo=1: 2/3 and 3/2 agree with the tempo; veto=1 or 0: flux can or
+// cannot stop a change (the composer's own setting when not given).
+const threeTwo = query.get('threeTwo') === '1', veto = query.has('veto') ? query.get('veto') === '1' : null;
+const useEssentia = query.get('essentia') === '1';
+const useWindows = query.get('windows') === '1';
+const TEMPO_WINDOW = [10, 2], KEY_WINDOW = [20, 4];
+const KEY_PROFILES = ['edma', 'bgate', 'krumhansl'];
+
+// Essentia as it would run live: each window ends at time `t` and holds only
+// the audio before it. Returns [t, bpm, confidence] for tempo and
+// [t, key, strength] for key (edma profile), with the mean time per window.
+function essentiaWindows(essentia, mono, sampleRate) {
+  const run = ([length, step], analyse) => {
+    const out = [];
+    let ms = 0;
+    for (let end = length; end <= mono.length / sampleRate + 1e-9; end += step) {
+      const window = essentia.arrayToVector(mono.subarray(Math.round((end - length) * sampleRate), Math.round(end * sampleRate)));
+      try {
+        const start = performance.now();
+        out.push([end, ...analyse(window)]);
+        ms += performance.now() - start;
+      } finally {
+        window.delete();
+      }
+    }
+    return { values: out, ms: out.length ? ms / out.length : 0 };
+  };
+  const tempo = run(TEMPO_WINDOW, (window) => {
+    const r = essentia.RhythmExtractor2013(window, 208, 'multifeature', 40);
+    for (const name of ['ticks', 'estimates', 'bpmIntervals']) r[name]?.delete?.();
+    return [Math.round(r.bpm * 100) / 100, Math.round(r.confidence * 100) / 100];
+  });
+  const key = run(KEY_WINDOW, (window) => {
+    const k = essentia.KeyExtractor(window, true, 4096, 4096, 12, 3500, 60, 25, 0.2, 'edma', sampleRate);
+    return [`${k.key} ${k.scale}`, Math.round(k.strength * 1000) / 1000];
+  });
+  return { tempo: tempo.values, tempoMs: tempo.ms, key: key.values, keyMs: key.ms };
+}
+
+function essentiaTrack(essentia, buffer) {
+  const mono = new Float32Array(buffer.length);
+  for (let c = 0; c < buffer.numberOfChannels; ++c) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < mono.length; ++i) mono[i] += data[i] / buffer.numberOfChannels;
+  }
+  const signal = essentia.arrayToVector(mono);
+  try {
+    let start = performance.now();
+    const rhythm = essentia.RhythmExtractor2013(signal, 208, 'multifeature', 40);
+    const rhythmMs = performance.now() - start;
+    const ticks = essentia.vectorToArray(rhythm.ticks);
+    for (const name of ['ticks', 'estimates', 'bpmIntervals']) rhythm[name]?.delete?.();
+    const keys = {};
+    start = performance.now();
+    for (const profile of KEY_PROFILES) {
+      const k = essentia.KeyExtractor(signal, true, 4096, 4096, 12, 3500, 60, 25, 0.2, profile, buffer.sampleRate);
+      keys[profile] = { key: `${k.key} ${k.scale}`, strength: k.strength };
+    }
+    const keyMs = (performance.now() - start) / KEY_PROFILES.length;
+    return { bpm: rhythm.bpm, confidence: rhythm.confidence, ticks: Array.from(ticks, (t) => Math.round(t * 1000) / 1000),
+      keys, rhythmMs, keyMs, windows: useWindows ? essentiaWindows(essentia, mono, buffer.sampleRate) : null };
+  } finally {
+    signal.delete();
+  }
+}
+const FEATURES = ['centroid', 'flatness', 'rolloff', 'flux', 'zcr'];
+const EXISTING = ['level', 'bass', 'mid', 'treble'];
+
+function correlation(a, b) {
+  const n = a.length;
+  let meanA = 0, meanB = 0;
+  for (let i = 0; i < n; ++i) { meanA += a[i]; meanB += b[i]; }
+  meanA /= n; meanB /= n;
+  let ab = 0, aa = 0, bb = 0;
+  for (let i = 0; i < n; ++i) {
+    ab += (a[i] - meanA) * (b[i] - meanB);
+    aa += (a[i] - meanA) ** 2;
+    bb += (b[i] - meanB) ** 2;
+  }
+  return aa > 0 && bb > 0 ? ab / Math.sqrt(aa * bb) : null;
+}
+
+// Keeps [time, value] whenever the value changes.
+function changes() {
+  const list = [];
+  return { list, add(t, value) { if (!list.length || list[list.length - 1][1] !== value) list.push([t, value]); } };
+}
+
+async function analyseTrack({ index, id }, decoder, essentia) {
+  const response = await fetch(`/data/${index}`);
+  if (!response.ok) throw new Error(`track ${id}: ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  // Decoding takes over the bytes, so Essentia's 44.1 kHz decode gets a copy.
+  const essentiaResult = useEssentia && essentia ?
+    essentiaTrack(essentia, await essentia.decoder.decodeAudioData(bytes.slice(0))) : null;
+  const buffer = await decoder.decodeAudioData(bytes);
+  const series = { key: changes(), mKey: changes(), bpm: changes(), fluxBpm: changes() };
+  const columns = Object.fromEntries([...FEATURES, ...EXISTING].map((name) => [name, []]));
+  const sums = { analyseMs: 0, featuresMs: 0, chromaMs: 0 };
+  let frames = 0, onsets = 0, fluxOnsets = 0, end = 0, bassCapped = 0;
+  // High-band hits (T30): how many, and the strength and place of each; air
+  // and the hit rate every frame; and how many hits fell on a flux onset.
+  const highs = { hits: 0, onOnsets: 0, strength: [], place: [], air: [], rate: [] };
+  await analyseBuffer(buffer, {
+    fps, gain, beatSource: source, essentia, estimatesToChange: hold, threeTwoAgrees: threeTwo, fluxVeto: veto,
+    meydaFeatures: false,
+    onFrame: (v) => {
+      ++frames;
+      end = v.t;
+      series.key.add(v.t, v.key ? `${v.key}${v.held ? ':held' : ''}` : null);
+      series.mKey.add(v.t, v.mKey ? `${v.mKey}${v.mHeld ? ':held' : ''}` : null);
+      series.bpm.add(v.t, v.bpm === null ? null : Math.round(v.bpm * 10) / 10);
+      series.fluxBpm.add(v.t, v.fluxBpm === null ? null : Math.round(v.fluxBpm * 10) / 10);
+      onsets += v.onset;
+      if (v.bass >= 0.999) ++bassCapped;
+      fluxOnsets += v.fluxOnset;
+      if (v.highHit) {
+        ++highs.hits;
+        highs.onOnsets += v.fluxOnset;
+        highs.strength.push(v.highStrength);
+        highs.place.push(v.highPlace);
+      }
+      highs.air.push(v.air);
+      highs.rate.push(v.highRate);
+      for (const name in columns) columns[name].push(v[name]);
+      for (const name in sums) sums[name] += v[name] ?? 0;
+    },
+  });
+  // How far each new feature only repeats level or a band, over this track.
+  const correlations = Object.fromEntries(FEATURES.map((feature) =>
+    [feature, EXISTING.map((existing) => correlation(columns[feature], columns[existing]))]));
+  const mean = (list) => list.reduce((s, v) => s + v, 0) / list.length;
+  const bass = [...columns.bass].sort((a, b) => a - b);
+  const quantile = (list, p) => {
+    const sorted = [...list].sort((a, b) => a - b);
+    return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : null;
+  };
+  return {
+    id, seconds: end, frames, onsets, fluxOnsets, correlations, bassCapped: bassCapped / frames,
+    bassMedian: bass[Math.floor(bass.length / 2)],
+    highs: { hits: highs.hits, onOnsets: highs.onOnsets, strength: quantile(highs.strength, 0.5),
+      place: quantile(highs.place, 0.5), air: quantile(highs.air, 0.5), airHigh: quantile(highs.air, 0.9),
+      rateHigh: quantile(highs.rate, 0.9), silentShare: highs.rate.filter((r) => r === 0).length / highs.rate.length },
+    essentia: essentiaResult,
+    level: mean(columns.level), cost: Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, v / frames])),
+    series: Object.fromEntries(Object.entries(series).map(([k, v]) => [k, v.list])),
+  };
+}
+
+try {
+  const list = await (await fetch('/data/list')).json();
+  const decoder = new OfflineAudioContext(2, SAMPLE_RATE, SAMPLE_RATE);
+  const essentia = useEssentia || source === 'essentia' ? await loadEssentia() : null;
+  if (essentia) essentia.decoder = new OfflineAudioContext(2, 44100, 44100);
+  for (const track of list) {
+    let summary;
+    try {
+      summary = await analyseTrack(track, decoder, essentia);
+    } catch (error) {
+      summary = { id: track.id, error: String(error.message || error) };
+    }
+    await fetch('/post/track', { method: 'POST', body: JSON.stringify(summary) });
+  }
+  await fetch('/result', { method: 'POST', body: JSON.stringify({ userAgent: navigator.userAgent, meydaErrors,
+    essentiaVersion: essentia?.version ?? null }) });
+} catch (error) {
+  await fetch('/result', { method: 'POST', body: `FAIL ${error.stack || error}` });
+}
+</script>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Layout frame</title>
+<!-- Loaded by tools/layout-check.html in a frame of a given size. Draws the
+     quad mixer's default layout (layout.js, layout-view.js) with stand-in
+     panes and a help popover (help.js), measures it, and posts what it
+     found to the page that framed it. -->
+<link rel="stylesheet" href="/style.css">
+<body style="margin:0">
+<div id="root" style="height:100vh"></div>
+<script type="module">
+const { QUAD_LAYOUT, layoutSettings, movePane, changePane } = await import('/layout.js');
+const { renderLayout } = await import('/layout-view.js');
+const { helpPopover } = await import('/help.js');
+const stand = (pane) => {
+  const box = document.createElement('section');
+  box.style.cssText = 'background:#171a22;border:1px solid #2a2f3c;min-height:40px';
+  const row = document.createElement('div');
+  row.className = 'mirrorable';
+  row.style.display = 'flex';
+  for (const name of ['first', 'second']) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = name;
+    button.dataset.role = name;
+    row.append(button);
+  }
+  row.append(helpPopover(`About ${pane.type}`, pane.type));
+  box.append(row);
+  return box;
+};
+const components = Object.fromEntries(['input', 'pair', 'master', 'all', 'output'].map((type) => [type, stand]));
+const root = document.getElementById('root');
+const layout = layoutSettings(QUAD_LAYOUT);
+const view = renderLayout(root, layout, components);
+const rect = (element) => element.getBoundingClientRect();
+const width = rect(root).width;
+const result = {
+  window: [innerWidth, innerHeight],
+  stacked: root.classList.contains('layout-stacked'),
+  columns: [...root.children].map((column) => ({
+    share: +(rect(column).width / width * 100).toFixed(1),
+    panes: [...column.children].map((pane) => ({ key: pane.dataset.pane, height: Math.round(rect(pane).height),
+      mirror: pane.classList.contains('layout-mirror') })),
+  })),
+};
+// Mirrored: the row's first control sits right of its second.
+const order = (key) => {
+  const pane = view.element(key);
+  return rect(pane.querySelector('[data-role=first]')).left < rect(pane.querySelector('[data-role=second]')).left
+    ? 'left to right' : 'right to left';
+};
+result.rowOrder = { 'input:a': order('input:a'), 'input:c': order('input:c') };
+// Moving a pane keeps its element.
+const before = view.element('output');
+view.update(movePane(layout, 'output', 0, 1));
+result.movedKeepsElement = view.element('output') === before && root.children[0].children[1] === before;
+view.update(changePane(layout, 'all', { hidden: true }));
+result.hiddenHidden = view.element('all').hidden === true && rect(view.element('all')).height === 0;
+view.update(layout);
+// The popover: hidden, then shown on focus, described by its text.
+const help = view.element('master').querySelector('.help');
+const pop = help.querySelector('.help-pop');
+const shownBefore = getComputedStyle(pop).display;
+help.querySelector('button').focus();
+result.popover = { before: shownBefore, focused: getComputedStyle(pop).display,
+  describedBy: help.querySelector('button').getAttribute('aria-describedby') === pop.id, role: pop.getAttribute('role') };
+parent.postMessage({ frame: location.search, result }, '*');
+</script>
+</body>
+</html>

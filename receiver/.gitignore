@@ -1,0 +1,7 @@
+*.o
+*.d
+*.dSYM/
+/matrix-dmx
+/scene-tool
+/dmx_protocol_test
+/stream_store_test

@@ -1,0 +1,38 @@
+{
+  "name": "matrixprism-composer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MatrixPrism composer: generative and audio-reactive patterns streamed to matrix-dmx over DDP",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/",
+    "check-shaders": "node tools/check-shaders.mjs",
+    "check-test-card": "node tools/check-test-card.mjs",
+    "check-sparkles": "node tools/check-sparkles.mjs",
+    "measure-colours": "node tools/measure-colours.mjs",
+    "compare-audio": "node tools/audio-compare.mjs",
+    "compare-tracks": "node tools/audio-tracks.mjs",
+    "check-essentia-live": "node tools/check-essentia-live.mjs",
+    "check-param-controls": "node tools/check-param-controls.mjs",
+    "check-hotsave": "node tools/check-hotsave.mjs",
+    "check-receivers": "node tools/check-receivers.mjs",
+    "measure-quad-cost": "node tools/quad-cost.mjs",
+    "check-quad-render": "node tools/check-quad-render.mjs",
+    "check-layout": "node tools/check-layout.mjs",
+    "check-quad-view": "node tools/check-quad-view.mjs",
+    "check-monitor-nudge": "node tools/check-monitor-nudge.mjs",
+    "check-monitor-key": "node tools/check-monitor-key.mjs",
+    "check-recording": "node tools/check-recording.mjs",
+    "frame-compare": "node tools/frame-compare.mjs",
+    "pattern-pixels": "node tools/pattern-pixels.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}

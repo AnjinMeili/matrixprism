@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Frame compare</title>
+<!-- Loaded by tools/frame-compare.mjs in headless Chrome. Draws a set of
+     scenes through Renderer.render, the path the composer streams, on seeded
+     simulated audio, and prints a hash of each scene's frames, so two
+     versions of the renderer can be compared frame for frame. ?dump=<scene>
+     prints that scene's frames, base64, for diff-pixels.mjs. -->
+<canvas id="canvas"></canvas>
+<pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById('out');
+try {
+  const options = new URLSearchParams(location.search);
+  const W = Number(options.get('width') || 96), H = Number(options.get('height') || 64);
+  const FRAMES = 60, EVERY = 10, DT = 1 / 30;
+  const { PATTERNS } = await import('./patterns.js');
+  const { Renderer } = await import('./renderer.js');
+  const { AudioAnalyzer } = await import('./audio.js');
+  const { SHAPE_DEFAULTS } = await import('./shape.js');
+  const { SPARKLE_DEFAULTS } = await import('./sparkle.js');
+  const { SPECTRUM_DEFAULTS } = await import('./spectrum-plot.js');
+  const { blendModeIndex } = await import('./mixer.js');
+  const { OVERLAY_ANCHORS, overlayElement } = await import('./overlays.js');
+  const find = (id) => PATTERNS.find((p) => p.id === id);
+  const renderer = new Renderer(document.getElementById('canvas'));
+  renderer.setSize(W, H);
+  const text = overlayElement({ enabled: true, type: 'text', text: 'MIX 42', anchor: OVERLAY_ANCHORS[0][0], x: 1, y: 1,
+    size: 8, opacity: 1, backgroundOpacity: 0.5, padding: 1, colour: '#ffffff', background: '#000000', format: '24',
+    zone: 'local', dateFormat: 'iso', font: 'pixel', layout: 'stack', seconds: false });
+  const layer = (id, mode, amount, shape = SHAPE_DEFAULTS) =>
+    ({ pattern: find(id), mode: blendModeIndex(mode), amount, shape });
+  const stateful = PATTERNS.filter((p) => p.createInstance && !p.isReady && !p.manualOnly && !p.spectrumPlot)
+    .slice(0, 12).map((p) => p.id);
+  // Each scene: a name and what it changes from a plain frame.
+  const scenes = [
+    ...PATTERNS.filter((p) => p.glsl).map((p) => [`alone ${p.id}`, { pattern: p }]),
+    ...stateful.map((id) => [`alone ${id}`, { pattern: find(id) }]),
+    ['mix crossfade 0.3', { pattern: find('plasma'), layer: layer('tunnel', 'crossfade', 0.3) }],
+    ['mix screen 0.5', { pattern: find('flow'), layer: layer('bars', 'screen', 0.5) }],
+    ['mix add 0.7', { pattern: find('kaleido'), layer: layer('stars', 'add', 0.7) }],
+    ['mix difference 0.5', { pattern: find('cells'), layer: layer('scope', 'difference', 0.5) }],
+    ['mix stencil 0.5', { pattern: find('metaballs'), layer: layer('radial', 'stencil', 0.5) }],
+    ['mix stateful equal-power 0.6', { pattern: find(stateful[0]), layer: layer(stateful[1], 'equal-power', 0.6) }],
+    ['mix regions', { pattern: find('plasma'), shape: { ...SHAPE_DEFAULTS, region: 'outer' },
+      layer: layer('tunnel', 'lighten', 1, { ...SHAPE_DEFAULTS, region: 'centre', edge: 0.1 }) }],
+    ['shape inside-out spin', { pattern: find('bars'), shape: { ...SHAPE_DEFAULTS, shape: 'inside-out', spin: 2 } }],
+    ['crossfade between patterns', { pattern: find('plasma'), previousPattern: find('tunnel'), mix: 0.4 }],
+    ['sparkles on edges', { pattern: find('cells'),
+      sparkles: { ...SPARKLE_DEFAULTS, enabled: true, placement: 'edges', density: 1, amount: 1 } }],
+    ['overlay text', { pattern: find('flow'), overlays: { enabled: true, elements: [text] } }],
+    ['brightness 0.8 gamma 2.2', { pattern: find('flow'), layer: layer('bars', 'screen', 0.5), brightness: 0.8, gamma: 2.2 }],
+    ['pattern settings', { pattern: find('plasma'), patternParams: { plasma: { scale: 6, flash: 1 } } }],
+  ];
+  const run = (scene) => {
+    let seed = 1;
+    Math.random = () => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const audio = new AudioAnalyzer();
+    audio.startSimulated();
+    let time = 0, hash = 0x811c9dc5, lit = 0;
+    const frames = [];
+    for (let frame = 0; frame < FRAMES; ++frame) {
+      const features = audio.update(DT, 1);
+      time += DT * (1 + features.level * 0.8);
+      const state = {
+        previousPattern: null, mix: 1, layer: null, shape: SHAPE_DEFAULTS,
+        beatPosition: frame * DT * 2, changeClock: frame * DT * 2, time, auroraTime: time, previousTime: time * 0.9,
+        audio: features, audioTime: frame * DT, spectrum: audio.spectrum, spectrumLeft: audio.spectrumLeft,
+        spectrumRight: audio.spectrumRight, wave: audio.wave, hue: 0.1, manualHue: 0.1, musicalKey: null,
+        brightness: 1, gamma: 1, flock: { count: null }, auroraDotSize: null, mediaFit: 'cover', silenceMode: 'quiet',
+        paletteId: 'original', spectrumOptions: SPECTRUM_DEFAULTS, rawSpectrum: audio.plotInput, patternParams: {},
+        overlays: { enabled: false, elements: [] }, sparkles: SPARKLE_DEFAULTS, wallTime: 0, ...scene,
+      };
+      const rgb = renderer.render(state);
+      if (frame % EVERY !== EVERY - 1) continue;
+      frames.push(rgb.slice());
+      for (let i = 0; i < rgb.length; ++i) {
+        hash = Math.imul(hash ^ rgb[i], 0x01000193) >>> 0;
+        if (rgb[i] > 16) ++lit;
+      }
+    }
+    audio.stop();
+    return { hash: hash.toString(16).padStart(8, '0'), lit: +(lit / (frames.length * W * H * 3)).toFixed(3), frames };
+  };
+  const dump = options.get('dump');
+  if (dump) {
+    const frames = run(scenes.find(([name]) => name === dump)[1]).frames;
+    const bytes = new Uint8Array(frames.reduce((n, f) => n + f.length, 0));
+    frames.reduce((at, f) => (bytes.set(f, at), at + f.length), 0);
+    let text = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    out.textContent = btoa(text);
+  } else {
+    // Each scene starts from a fresh renderer state for stateful patterns.
+    const lines = [];
+    for (const [name, scene] of scenes) {
+      renderer.setSize(1, 1);
+      renderer.setSize(W, H);
+      const r = run(scene);
+      lines.push(`${name}\t${r.hash}\t${r.lit}`);
+    }
+    out.textContent = lines.join('\n');
+  }
+} catch (error) {
+  out.textContent = `FAIL ${error.stack}`;
+}
+</script>
