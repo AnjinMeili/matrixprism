@@ -2123,6 +2123,9 @@ function setQuadShared(changes) {
   };
   if ('hue' in changes) fire('hue', 'input', (input) => { input.value = changes.hue; });
   if ('speed' in changes) fire('speed', 'input', (input) => { input.value = changes.speed; });
+  if ('brightness' in changes) fire('brightness', 'input', (input) => { input.value = changes.brightness; });
+  if ('gamma' in changes) fire('gamma', 'input', (input) => { input.value = changes.gamma; });
+  if ('gain' in changes) fire('gain', 'input', (input) => { input.value = changes.gain; });
   if ('paletteId' in changes) fire('pattern-palette', 'change', (select) => { select.value = changes.paletteId; });
   if ('keyColours' in changes) fire('key-colours', 'change', (box) => { box.checked = changes.keyColours; });
   if ('sparklesOn' in changes) fire('sparkle-enabled', 'change', (box) => { box.checked = changes.sparklesOn; });
@@ -2176,6 +2179,7 @@ function showQuadView() {
     swap: swapQuad,
     saveDefault: saveDefaultLook,
     shared: () => ({ hue: settings.hue, speed: settings.speed, paletteId: settings.paletteId,
+      brightness: settings.brightness, gamma: settings.gamma, gain: settings.gain,
       keyColours: settings.keyColours, sparklesOn: settings.sparkles.enabled, beatSource: settings.tempo.source,
       tapUnit: settings.tempo.tap, tempoManual: settings.tempo.mode === 'manual' }),
     setShared: setQuadShared,

@@ -103,7 +103,75 @@ try {
   const live0 = await liveLevel();
   check('the master at Left: the stream is bright', live0 > 20, live0.toFixed(1));
 
-  await set('[data-pane="master"] input[type=range]', 1, 'input');
+  // The Main's Brightness and Gamma are the Look sliders' settings, shown a
+  // second time: each moves the other, and Brightness dims the stream.
+  const lookRow = await run(`(() => { const main = ${q('[data-pane="master"]')}.getBoundingClientRect();
+    const all = ${q('[data-pane="all"]')}.getBoundingClientRect();
+    const sliders = [...${q('[data-pane="all"] .qv-all-look')}.querySelectorAll('input[type=range]')];
+    const buttons = [...${q('[data-pane="master"] .qv-main-buttons')}.querySelectorAll('button')].map((b) => b.getBoundingClientRect());
+    return { sliders: sliders.map((c) => [c.getAttribute('aria-label'), c.value]),
+      buttonsInside: buttons.length === 4 && buttons.every((r) => r.top >= main.top && r.bottom <= main.bottom + 0.5),
+      slidersInside: sliders.every((c) => { const r = c.getBoundingClientRect(); return r.top >= all.top && r.bottom <= all.bottom + 0.5; }) }; })()`);
+  check('All inputs has Brightness and Gamma sliders, at the saved values', JSON.stringify(lookRow.sliders) ===
+    JSON.stringify([['Main brightness', '1'], ['Main gamma', '1']]), JSON.stringify(lookRow.sliders));
+  check('the sliders stay inside All inputs and every Main button inside the Main at this window size', lookRow.buttonsInside && lookRow.slidersInside, JSON.stringify(lookRow));
+  // The pills and the Live label are not rewritten while nothing changes (they
+  // were, every frame, and flashed).
+  const writes = await run(`new Promise((resolve) => { let count = 0;
+    const watched = [...document.querySelectorAll('#quad-view .qv-pill')];
+    const observer = new MutationObserver((records) => { count += records.length; });
+    for (const node of watched) observer.observe(node, { childList: true, characterData: true, subtree: true, attributes: true });
+    setTimeout(() => { observer.disconnect(); resolve({ pills: watched.length, writes: count }); }, 1200); })`);
+  check('the on air, cued and Live pills are not rewritten while nothing changes', writes.pills >= 7 && writes.writes === 0, JSON.stringify(writes));
+  // Gain, in the gap between the Spectrum and Beat map displays, is Setup's
+  // Reactivity slider's setting.
+  const gainRow = await run(`(() => { const main = ${q('[data-pane="master"]')}.getBoundingClientRect();
+    const gain = ${q('[data-pane="master"] input[aria-label="Gain"]')}.getBoundingClientRect();
+    const [spectrum, beatMap] = [...${q('[data-pane="master"] .qv-minis')}.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect());
+    return { between: gain.left >= spectrum.right - 1 && gain.right <= beatMap.left + 1 && gain.top >= spectrum.top - 1 && gain.bottom <= spectrum.bottom + 1,
+      inside: gain.top >= main.top && gain.bottom <= main.bottom, value: ${q('[data-pane="master"] input[aria-label="Gain"]')}.value,
+      setup: document.getElementById('gain').value }; })()`);
+  check('Gain is a thin slider between the Spectrum and Beat map displays, at Setup\'s value', gainRow.between && gainRow.inside &&
+    gainRow.value === gainRow.setup, JSON.stringify(gainRow));
+  await set('[data-pane="master"] input[aria-label="Gain"]', 2.5, 'input');
+  await sleep(300);
+  const gainSet = await run(`({ saved: JSON.parse(localStorage.getItem('matrix-companion-settings')).gain,
+    setup: document.getElementById('gain').value, setupText: document.getElementById('gain-value').textContent,
+    caption: ${q('[data-pane="master"] .qv-minis figcaption')}.textContent })`);
+  check('Gain sets the setting and Setup\'s slider, and the Spectrum says so', gainSet.saved === 2.5 && gainSet.setup === '2.5' &&
+    gainSet.setupText === '2.50×' && gainSet.caption === 'Spectrum · gain 2.50×', JSON.stringify(gainSet));
+  await run(`{ const c = document.getElementById('gain'); c.value = 0.8; c.dispatchEvent(new Event('input')); }`);
+  await sleep(400);
+  const gainFollows = await run(`${q('[data-pane="master"] input[aria-label="Gain"]')}.value`);
+  check('Setup\'s Reactivity slider moves the Gain slider', gainFollows === '0.8', gainFollows);
+  await set('[data-pane="master"] input[aria-label="Gain"]', 1.5, 'input');
+  await sleep(200);
+  await set('[data-pane="all"] input[aria-label="Main brightness"]', 0.4, 'input');
+  await sleep(500);
+  const dimmed = await liveLevel();
+  const afterMain = await run(`({ saved: JSON.parse(localStorage.getItem('matrix-companion-settings')).brightness,
+    look: document.getElementById('brightness').value, lookText: document.getElementById('brightness-value').textContent })`);
+  check('Brightness in All inputs sets the setting and the Look slider, and dims the stream', afterMain.saved === 0.4 &&
+    afterMain.look === '0.4' && afterMain.lookText === '40%' && dimmed < live0 * 0.6, `${JSON.stringify(afterMain)}, stream ${live0.toFixed(1)} to ${dimmed.toFixed(1)}`);
+  await set('[data-pane="all"] input[aria-label="Main gamma"]', 2, 'input');
+  const afterGamma = await run(`({ saved: JSON.parse(localStorage.getItem('matrix-companion-settings')).gamma,
+    look: document.getElementById('gamma').value, lookText: document.getElementById('gamma-value').textContent })`);
+  check('Gamma in All inputs sets the setting and the Look slider', afterGamma.saved === 2 && afterGamma.look === '2' &&
+    afterGamma.lookText === '2.00', JSON.stringify(afterGamma));
+  // The other way: the Look sliders move, and the Main's follow on the next visit.
+  await run(`document.querySelector('[data-view-button="patterns"]').click()`);
+  await sleep(300);
+  await run(`{ for (const [id, value] of [['brightness', 0.7], ['gamma', 1.5]]) { const c = document.getElementById(id);
+    c.value = value; c.dispatchEvent(new Event('input')); } }`);
+  await run(`document.querySelector('[data-view-button="quad"]').click()`);
+  await sleep(500);
+  const followed = await run(`[...${q('[data-pane="all"] .qv-all-look')}.querySelectorAll('input[type=range]')].map((c) => c.value)`);
+  check('the Look sliders move the All inputs sliders', JSON.stringify(followed) === JSON.stringify(['0.7', '1.5']), JSON.stringify(followed));
+  await set('[data-pane="all"] input[aria-label="Main brightness"]', 1, 'input');
+  await set('[data-pane="all"] input[aria-label="Main gamma"]', 1, 'input');
+  await sleep(300);
+
+  await set('[data-pane="master"] .qv-master-fader input[type=range]', 1, 'input');
   await sleep(500);
   const live1 = await liveLevel();
   check('the fader at Right turns the stream black at once', live1 < 2, live1.toFixed(1));
@@ -150,7 +218,7 @@ try {
   await set('[data-pane="input:c"] select', 'tunnel', 'change');
   await clickText('master', 'Save as default');
   await set('[data-pane="input:c"] select', 'stars', 'change');
-  await set('[data-pane="master"] input[type=range]', 0.7, 'input');
+  await set('[data-pane="master"] .qv-master-fader input[type=range]', 0.7, 'input');
   await run(`{ const h = document.getElementById('hue'); h.value = '0.5'; h.dispatchEvent(new Event('input')); }`);
   await sleep(200);
   await clickText('master', 'Reset main');
@@ -167,7 +235,7 @@ try {
   await set('[data-pane="input:b"] select', 'panel-range', 'change');
   await set('[data-pane="input:c"] select', 'panel-range', 'change');
   await set('[data-pane="input:c"] input[type=range]', 0, 'input');
-  await set('[data-pane="master"] input[type=range]', 0, 'input');
+  await set('[data-pane="master"] .qv-master-fader input[type=range]', 0, 'input');
   // A crossfade on both pairs and the master, whose fader is a position.
   await set('[data-pane="pair:left"] select', 'crossfade', 'change');
   await set('[data-pane="pair:right"] select', 'crossfade', 'change');
@@ -514,7 +582,7 @@ try {
   // The main: a look saved as the default, everything changed, Reset main.
   await set('[data-pane="input:a"] select', 'cells', 'change');
   await set('[data-pane="pair:right"] input[type=range]', 0.4, 'input');
-  await set('[data-pane="master"] input[type=range]', 0, 'input');
+  await set('[data-pane="master"] .qv-master-fader input[type=range]', 0, 'input');
   await clickText('master', 'Save as default');
   await sleep(300);
   const look = (await saved()).defaultLook;

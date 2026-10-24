@@ -652,7 +652,9 @@ into one.
   change. A pair showing its first input alone shows the other alone after,
   as a crossfade. A fade under way ends.
 - **The main** has the Live monitor (what the stream is sending), a
-  spectrum and a beat map, the Left–Right fader, its blend, fade time and
+  spectrum and a beat map with a thin **Gain** slider between them (the
+  input's gain, the same setting as Reactivity on Setup; the spectrum's
+  caption shows it), the Left–Right fader, its blend, fade time and
   when a fade starts (at once, or on the next beat, bar or phrase). Every
   change goes to the stream as it is made. **Fade to Right** (or **to
   Left**) takes the main across over the fade time; moving the fader
@@ -661,7 +663,10 @@ into one.
   as default** makes the look on screen that default. Until one is saved,
   the default is plain patterns.
 - **All inputs** holds the shared settings (tempo, beat source, tap tempo
-  and what each tap is, hue, speed, palette, key colours; **Detect**
+  and what each tap is, hue, speed, **Brightness and Gamma** of the final
+  picture (the same settings as Brightness and Gamma under Look, kept for each
+  receiver; an input's own sliders trim only that input), palette, key
+  colours; **Detect**
   shows while the tempo is set by hand and goes back to the audio's), and **Output and sequencing** streaming,
   Hotsave and the randomizer; each randomizer item sits in the pane it
   changes (see "Randomizer").

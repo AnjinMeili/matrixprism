@@ -34,6 +34,10 @@ const el = (tag, props = {}, ...children) => {
   node.append(...children.filter((child) => child !== null && child !== undefined && child !== false));
   return node;
 };
+// A label's text or class, written only when it differs: the view refreshes
+// every frame, and rewriting an unchanged pill made it flash.
+const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+const setClass = (node, name) => { if (node.className !== name) node.className = name; };
 const field = (label, control, extra = {}) => el('label', { className: 'qv-field', ...extra }, label, control);
 const select = (options, onChange, props = {}) => {
   const node = el('select', props);
@@ -137,8 +141,8 @@ export function buildQuadView(container, layout, api) {
     syncs.push(() => {
       const position = api.master().position;
       const onAir = pairId === 'left' ? position < 1 : position > 0;
-      pill.textContent = onAir ? 'on air' : 'cued';
-      pill.className = `qv-pill ${onAir ? 'qv-live' : 'qv-cue'}`;
+      setText(pill, onAir ? 'on air' : 'cued');
+      setClass(pill, `qv-pill ${onAir ? 'qv-live' : 'qv-cue'}`);
     });
     return pill;
   };
@@ -355,6 +359,14 @@ export function buildQuadView(container, layout, api) {
       const spectrum = el('canvas', { className: 'qv-mini', width: 128, height: 36 });
       spectrum.setAttribute('role', 'img');
       spectrum.setAttribute('aria-label', 'Audio spectrum');
+      // The input gain (Setup's slider, labelled Reactivity there) as a thin
+      // vertical slider in the gap between the two small displays it shapes
+      // the spectrum of: no height of its own, and the same setting as Setup's.
+      const gain = range(0, 4, 0.05, (value) => api.setShared({ gain: value }));
+      gain.setAttribute('aria-label', 'Gain');
+      gain.setAttribute('aria-orientation', 'vertical');
+      const gainBox = el('span', { className: 'qv-gain-box' }, gain);
+      const spectrumCaption = el('figcaption', {}, 'Spectrum');
       const beatMap = el('canvas', { className: 'qv-mini', width: 256, height: 192 });
       beatMap.setAttribute('role', 'img');
       beatMap.setAttribute('aria-label', 'Beat map: the last bars, beats lined up across');
@@ -370,11 +382,15 @@ export function buildQuadView(container, layout, api) {
         show(fader, master.position);
         fade.textContent = fading ? 'Fading…' : master.position < 0.5 ? 'Fade to Right' : 'Fade to Left';
         show(blend, master.mode);
+        const level = api.shared().gain;
+        show(gain, level);
+        setText(spectrumCaption, `Spectrum · gain ${level.toFixed(2)}×`);
+        gain.title = `Gain ${level.toFixed(2)}×: the input's gain, the same as Reactivity on Setup`;
         show(fadeTime, master.fadeSeconds);
         show(fadeStart, master.fadeStart);
         blackout.classList.toggle('qv-on', master.blackout);
         blackout.textContent = master.blackout ? 'Blackout on' : 'Blackout';
-        liveLabel.textContent = `Live · on stream${fading ? ' · fading' : ''}`;
+        setText(liveLabel, `Live · on stream${fading ? ' · fading' : ''}`);
         const sparklesOn = api.shared().sparklesOn;
         sparkleSettings.opener.classList.toggle('qv-set', sparklesOn);
         sparkleSettings.opener.title = `Sparkles ${sparklesOn ? 'on' : 'off'}: their settings, over the final mix`;
@@ -386,7 +402,8 @@ export function buildQuadView(container, layout, api) {
         el('div', { className: 'qv-monitors' },
           el('figure', { className: 'qv-monitor' }, el('figcaption', {}, liveLabel), liveCanvas)),
         el('div', { className: 'qv-minis' },
-          el('figure', { className: 'qv-mini-box' }, spectrum, el('figcaption', {}, 'Spectrum')),
+          el('figure', { className: 'qv-mini-box' }, spectrum, spectrumCaption),
+          gainBox,
           el('figure', { className: 'qv-mini-box' }, beatMap, el('figcaption', {}, 'Beat map'))),
         el('div', { className: 'qv-fader qv-master-fader' }, el('span', { textContent: 'Left' }), fader, el('span', { textContent: 'Right' })),
         el('div', { className: 'qv-row' }, field('Blend', blend), field('Fade', fadeTime), field('Starts', fadeStart)),
@@ -425,6 +442,14 @@ export function buildQuadView(container, layout, api) {
       const hue = range(0, 1, 0.01, (value) => api.setShared({ hue: value }));
       const speed = range(0, 3, 0.05, (value) => api.setShared({ speed: value }));
       const hueOut = el('output'), speedOut = el('output');
+      // The brightness and gamma of the final picture: the same settings as
+      // Brightness and Gamma under Look, kept for each receiver; an input's
+      // own sliders trim only that input.
+      const brightness = range(0, 1, 0.01, (value) => api.setShared({ brightness: value }));
+      brightness.setAttribute('aria-label', 'Main brightness');
+      const gamma = range(1, 2.8, 0.05, (value) => api.setShared({ gamma: value }));
+      gamma.setAttribute('aria-label', 'Main gamma');
+      const brightnessOut = el('output'), gammaOut = el('output');
       const palette = select(api.palettes, (value) => api.setShared({ paletteId: value }));
       const keyColours = el('input', { type: 'checkbox' });
       keyColours.addEventListener('change', () => api.setShared({ keyColours: keyColours.checked }));
@@ -438,6 +463,10 @@ export function buildQuadView(container, layout, api) {
         show(speed, shared.speed);
         hueOut.textContent = `${Math.round(shared.hue * 360)}°`;
         speedOut.textContent = `${shared.speed.toFixed(2)}×`;
+        show(brightness, shared.brightness);
+        show(gamma, shared.gamma);
+        setText(brightnessOut, `${Math.round(shared.brightness * 100)}%`);
+        setText(gammaOut, shared.gamma.toFixed(2));
         show(palette, shared.paletteId);
         show(keyColours, shared.keyColours);
       });
@@ -448,6 +477,11 @@ export function buildQuadView(container, layout, api) {
           tap, follow,
           helpPopover('Tap, or press T, in time with the music: on every beat, or on the first beat of every bar. Two or more taps set the tempo by hand and put it in charge; every tap also pulls the beat, or the bar line, into step. Detect goes back to the tempo found in the audio. Downbeat, or D, marks the first beat of a bar: while the tempo is detected it moves only which beat is first, so the beats stay the tracker\'s; on the manual tempo it sets the bar line from the press. The other tempo settings are on the Setup view.', 'tap tempo')),
         el('div', { className: 'qv-row' }, field(el('span', {}, 'Hue shift ', hueOut), hue), field(el('span', {}, 'Speed ', speedOut), speed)),
+        el('div', { className: 'qv-row qv-all-look' },
+          field(el('span', {}, 'Brightness ', brightnessOut), brightness,
+            { title: 'How bright the final picture is, for the stream and the preview. The same setting as Brightness under Look, kept for each receiver' }),
+          field(el('span', {}, 'Gamma ', gammaOut), gamma,
+            { title: 'The final picture\'s gamma: raise it to dim the shadows of a panel that looks washed out. The same setting as Gamma under Look, kept for each receiver' })),
         el('div', { className: 'qv-row' }, field('Palette', palette),
           el('label', { className: 'qv-check' }, keyColours, ' Key colours')),
         el('div', { className: 'qv-row' }, randomItem('colour', 'Random hue shift and palette',
