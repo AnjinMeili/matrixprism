@@ -1,7 +1,12 @@
+// Copyright Mark Estes (Table_Mark_Estes), adapted by Marc Merlin; JavaScript
+// port copyright 2026 Anjin <anjin@skyhighatry.com>.
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0: ../../licenses/table-mark-estes.txt.
+// This file is a modified, translated version of the sketch; the deliberate
+// differences are listed in ./NOTICE.md.
 // Runtime for the Table_Mark_Estes port: the sketch's shared state, its
 // per-pattern randomisation and per-frame housekeeping, and the FastLED and
-// LEDMatrix primitives its effects draw with. See ./NOTICE.md for provenance
-// and licence status.
+// LEDMatrix primitives its effects draw with. See ./NOTICE.md for provenance.
 import { byte, scale8, sin8, cos8, beatsin8 } from '../../aurora-fastled.js';
 import { checkfancy } from './decorations.js';
 

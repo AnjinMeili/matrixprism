@@ -1,3 +1,9 @@
+// Copyright Mark Estes (Table_Mark_Estes), adapted by Marc Merlin; JavaScript
+// port copyright 2026 Anjin <anjin@skyhighatry.com>.
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0: ../../licenses/table-mark-estes.txt.
+// This file is a modified, translated version of the sketch; the deliberate
+// differences are listed in ./NOTICE.md.
 // Audio-driven effects ported from Table_Mark_Estes_Impl.h. The sketch read
 // two 64-bin spectra (left and right) from a second microcontroller; here
 // they come from the composer's analyser through the runtime (see

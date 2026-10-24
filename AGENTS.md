@@ -147,9 +147,9 @@ make -C receiver test         # receiver protocol, recording, scene tool
   audio and makes every tempo read about 13% fast. Keep recordings out of
   the repository.
 - `node tools/pattern-frames.mjs <id> <out.png> [--size WxH] [--frames 8]
-  [--every 6] [--scale 4] [--params '{…}']` saves a contact sheet of a
-  pattern's frames, drawn through the real renderer after two seconds: for
-  looking at a pattern, which no check does.
+  [--every 6] [--scale 4] [--warm 2] [--params '{…}']` saves a contact sheet
+  of a pattern's frames, drawn through the real renderer after two seconds
+  (`--warm` seconds): for looking at a pattern, which no check does.
 - `npm run frame-compare` draws 44 scenes through `Renderer.render` (the
   stream's path) and prints a hash of each; run it on two versions (copy
   `tools/frame-compare.*` into a worktree of the other) and diff, to show a
@@ -168,6 +168,11 @@ make -C receiver test         # receiver protocol, recording, scene tool
   pattern's simulation in Node at a panel's size (`--size 256x192`) on
   simulated kicks and reports what each setting changes (level, flame
   height, the jump after a beat, embers). Run it after changing `fire.js`.
+- `node tools/measure-bounce.mjs` is a measurement: it runs Aurora Bounce
+  in Node for minutes (`--minutes 10`) on silence or the simulated signal
+  (`--signal`), with chosen settings (`--params`), and reports how high the
+  balls get each minute and how many lie on the floor. Run it after
+  changing Bounce.
 - `npm run measure-colours` is a measurement, not a pass or fail check: it
   reports how many colours, hues and brightness levels each pattern sends.
   Use it when a question about colour comes up, and compare against "Colour
@@ -228,8 +233,8 @@ make -C receiver test         # receiver protocol, recording, scene tool
   checking out a branch in a clone where the composer is running changes
   what the browser gets on its next reload; changes to `server.js` or `lib/`
   need the server restarted. Do branch work that should not reach a running
-  copy in a `git worktree` (link `composer/node_modules` in to run the
-  tests).
+  copy in a `git worktree`; the composer has no npm dependencies, so the
+  tests run there without `npm install`.
 - **Reporting goes in the repo.** Keep `docs/roadmap.md`, the READMEs and
   `composer-spec.md` in step with the code, in the same commit where
   practical, and state what was and was not verified. A measurement that

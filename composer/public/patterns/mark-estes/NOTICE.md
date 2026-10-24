@@ -1,4 +1,4 @@
-# Table Mark Estes patterns: provenance and licence status
+# Table Mark Estes patterns: provenance and licence
 
 The JavaScript in this directory is a port of patterns from the Arduino
 sketch **Table_Mark_Estes69** by Mark Estes, as maintained by Marc Merlin:
@@ -14,26 +14,33 @@ LEDMatrix library by Aaron Liddiment (Marc Merlin's fork,
 <https://github.com/marcmerlin/LEDMatrix>). Colour conversion follows
 FastLED's `hsv2rgb_rainbow` (FastLED is MIT licensed).
 
-## Licence status: none stated upstream
+## Licence: Apache-2.0
 
-**Neither upstream repository states a licence.** When this port was made
-(2026-10-11) GitHub reported no licence for either repository, and the
-Table_Mark_Estes69 sources contain no licence or copyright text. Without a
-licence, the authors keep all rights by default, and a port is a derivative
-work.
+**Table_Mark_Estes is licensed under the Apache License, Version 2.0.** The
+licence file is in the sketch's directory upstream,
+`LEDMatrix/Table_Mark_Estes/LICENSE` (added by Marc Merlin on 2019-01-03,
+commit `120bed2e`); `Table_Mark_Estes69` is a later version of the same
+sketch and carries no licence file of its own, which is why this port was
+first recorded as unlicensed (2026-10-11 to 2026-10-23). Marc Merlin
+confirmed the position on 2026-10-23, in reply to the project's announcement
+on the rpi-rgb-led-matrix forum: "TME is Apache-2", with a link to that file.
 
-The port was first kept on a local branch for that reason. On 2026-10-12 
-Anjin decided to merge it, and later to publish it with the rest of
-the project, crediting the authors here and in `CREDITS.md`. No licence or
-permission from Mark Estes or Marc Merlin is recorded here, so:
+The licence text, with a notice naming the authors and this port's changes,
+is `composer/public/licenses/table-mark-estes.txt`. What Apache-2.0 §4 asks
+for, and where it is done:
 
-- this directory is **not** covered by the project's GPL-3.0 licence, and
-  nothing in this repository grants rights to it;
-- anyone reusing it should ask the original authors first;
-- it should be removed if either author asks.
+- a copy of the licence goes with the code: that file;
+- a modified file says so: every file in this directory carries a header
+  saying it is a translated, modified version, with the SPDX tag
+  `Apache-2.0`, and the differences are listed below;
+- attribution notices are kept: the sketch's own attribution is "code by
+  Mark Estes", kept in the headers and here, with Marc Merlin's adaptation;
+  upstream has no NOTICE file.
 
-When terms are obtained, replace this section with them and add the licence
-text under `composer/public/licenses/`, as for the other ports.
+The port's own changes are released under Apache-2.0 as well, so the whole
+directory is Apache-2.0. Apache-2.0 code may be combined with GPL-3.0 code,
+so the composer as distributed stays GPL-3.0-or-later with this directory
+keeping its own licence and notices (see `CREDITS.md`).
 
 ## What is ported
 

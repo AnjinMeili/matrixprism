@@ -1,6 +1,12 @@
+// Copyright Mark Estes (Table_Mark_Estes), adapted by Marc Merlin; JavaScript
+// port copyright 2026 Anjin <anjin@skyhighatry.com>.
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0: ../../licenses/table-mark-estes.txt.
+// This file is a modified, translated version of the sketch; the deliberate
+// differences are listed in ./NOTICE.md.
 // Effect functions ported from Table_Mark_Estes_Impl.h. Each takes the
 // runtime `t` in place of the sketch's globals and keeps the original name.
-// See ./NOTICE.md for provenance and licence status.
+// See ./NOTICE.md for provenance.
 import { sin8, cos8, inoise8 } from '../../aurora-fastled.js';
 import {
   div, hsv, WHITE, BLACK, GREEN, PURPLE, RED, BLUE, YELLOW,

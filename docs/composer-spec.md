@@ -195,7 +195,7 @@ of stalling every frame.
 | Spectrum Lab | 1 | `spectrum-plot.js` | Configurable analyser |
 | Beat Graph | 1 | `beat-graph.js` | The music folded by the bar of the beat clock, after BpmDj |
 | Media Player | 1 | `media.js` | Image, animated image or video; one file, or a random one from a folder |
-| Aurora ports | 13 | `aurora-patterns.js`, `aurora-fastled.js` | Native panel resolution |
+| Aurora ports | 13 | `aurora-patterns.js`, `aurora-fastled.js` | Native panel resolution; Bounce has its own settings and follows the audio (T54) |
 | Fibonacci ports | 4 | `fibonacci-patterns.js` | Native panel resolution |
 | Mark Estes | 94 | `patterns/mark-estes/` | Sketch's own runtime; 37 audio-driven |
 | AuroraDrop | 9 | `patterns/auroradrop/` | 64 by 64 canvas scaled to the panel |
@@ -240,6 +240,7 @@ In `composer/public/` unless noted.
 | `frame-clock.js` | Worker timer |
 | `server.js`, `lib/ddp.js` (in `composer/`) | HTTP, WebSocket and DDP |
 | `lib/mdns.js` (in `composer/`) | Finding receivers on the network by mDNS |
+| `lib/vendor/ws/` (in `composer/`) | The server's WebSocket library, [ws](https://github.com/websockets/ws) 8.22.0, kept unchanged so the composer has no npm dependencies (see its `NOTICE.md`) |
 | `receivers.js` | Settings kept for each receiver, and the limit on frames sent |
 | `lib/version.js` (in `composer/`), `version.js` | Which copy is running: package version, git branch, commit and folder, served at `/api/version` and shown in the Version frame |
 

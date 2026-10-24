@@ -42,9 +42,12 @@ On the Mac or PC:
 ```sh
 git clone https://github.com/AnjinMeili/matrixprism.git
 cd matrixprism/composer
-npm install
 npm start -- --ddp <receiver host>
 ```
+
+There is no `npm install` step: the composer needs only Node.js 18 or
+newer, and the one library its server uses, `ws`, is kept in
+`composer/lib/vendor/ws/`.
 
 Then open <http://localhost:8080/> and choose the receiver under Setup.
 `<receiver host>` is the receiver's IP address or name, such as
@@ -102,10 +105,9 @@ The READMEs of the two parts have the options and the details.
 
 MatrixPrism is free software under the GNU General Public License, version
 3 or later; see [COPYING](COPYING). Some parts carry their own licences: the
-Aurora and AuroraDrop ports and FastLED's primitives are MIT, Essentia.js is
-AGPL-3.0, and the Table Mark Estes port has no licence from its authors and
-is not covered by the GPL. [CREDITS.md](CREDITS.md) lists each source, its
-authors and its licence.
+Aurora and AuroraDrop ports and FastLED's primitives are MIT, the Table Mark
+Estes port is Apache-2.0, and Essentia.js is AGPL-3.0. [CREDITS.md](CREDITS.md)
+lists each source, its authors and its licence.
 
 ## Contact
 

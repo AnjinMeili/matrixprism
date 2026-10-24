@@ -21,7 +21,7 @@ It is the licence that works with everything included here:
 | Aurora, FastLED, AuroraDrop, Meyda, ws | MIT | Permissive: included in a GPL work, keeping their notices |
 | Pendulum Wave's source | CC0 1.0 | Public domain dedication |
 | Essentia.js | AGPL-3.0 | GPL-3.0 §13 allows combining with AGPL-3.0 code; that part keeps its own terms, including offering the source to users of a served copy |
-| Table Mark Estes | None stated | Not covered by any licence here, so outside the GPL, as its NOTICE says; it is the one part with no licence, and will be removed if its authors ask |
+| Table Mark Estes | Apache-2.0 | Permissive, and compatible with GPL-3.0 one way: Apache-2.0 code may be included in a GPL-3.0 work, keeping its licence and notices. The directory stays Apache-2.0 |
 
 ## Where the project began
 
@@ -43,7 +43,7 @@ file records the exact upstream revision that was read.
 | [fibonacci128-touch-demo](https://github.com/jasoncoon/fibonacci128-touch-demo), through the fork [fibonacci128-touch-aurora](https://github.com/AnjinMeili/fibonacci128-touch-aurora) at `5f8dd39` | Jason Coon and Fibonacci128 contributors; Radial Fire after Intrinsically-Sublime's [esp8266-fastled-webserver](https://github.com/Intrinsically-Sublime/esp8266-fastled-webserver), adapted by Marc Merlin | GPL-3.0 | `composer/public/fibonacci-patterns.js`; details in `composer/public/licenses/fibonacci.txt` |
 | [ColorWavesWithPalettes](https://gist.github.com/kriegsman/8281905786e8b2632aeb): 33 gradient palettes from the [cpt-city](http://soliton.vm.bytemark.co.uk/pub/cpt-city/) archive | Mark Kriegsman; each palette's original author is named in its source comment | As published with the gist and in cpt-city; the source comments are kept verbatim | `composer/public/gradient-palettes.js`; comments in `composer/public/licenses/gradient-palettes.txt` |
 | [AuroraDrop](https://github.com/fivefishstudios/AuroraDrop) and its fork [AuroraDrop-LXP](https://github.com/troyhacks/AuroraDrop-LXP) | uklooney (fivefishstudios) and troyhacks, on Aurora by Jason Coon | No repository licence. Only files carrying Aurora's MIT notice are ported; files without a notice are left out and listed | `composer/public/patterns/auroradrop/`; see its [NOTICE.md](composer/public/patterns/auroradrop/NOTICE.md) |
-| Table_Mark_Estes69, in [FastLED_NeoMatrix_SmartMatrix_LEDMatrix_GFX_Demos](https://github.com/marcmerlin/FastLED_NeoMatrix_SmartMatrix_LEDMatrix_GFX_Demos) at `c653f9f`, with mirror and shift routines after Aaron Liddiment's [LEDMatrix](https://github.com/marcmerlin/LEDMatrix) | Mark Estes; maintained by Marc Merlin | **None stated upstream.** This directory is not covered by MatrixPrism's GPL licence, and nothing here grants rights to it. It will be removed if the authors ask (write to anjin@skyhighatry.com) | `composer/public/patterns/mark-estes/`; see its [NOTICE.md](composer/public/patterns/mark-estes/NOTICE.md) |
+| Table_Mark_Estes69, in [FastLED_NeoMatrix_SmartMatrix_LEDMatrix_GFX_Demos](https://github.com/marcmerlin/FastLED_NeoMatrix_SmartMatrix_LEDMatrix_GFX_Demos) at `c653f9f`, with mirror and shift routines after Aaron Liddiment's [LEDMatrix](https://github.com/marcmerlin/LEDMatrix) | Mark Estes; adapted and maintained by Marc Merlin | Apache-2.0: the `LICENSE` in upstream's `LEDMatrix/Table_Mark_Estes/`, the sketch's directory (the `…69` version carries none of its own); confirmed by Marc Merlin on 2026-10-23. Text and notice in `composer/public/licenses/table-mark-estes.txt` | `composer/public/patterns/mark-estes/`, every file tagged `SPDX-License-Identifier: Apache-2.0`; see its [NOTICE.md](composer/public/patterns/mark-estes/NOTICE.md) |
 
 ## Libraries included in this repository
 
@@ -51,7 +51,7 @@ file records the exact upstream revision that was read.
 |---------|---------|---------|---------------------|
 | [Essentia.js](https://mtg.github.io/essentia.js/) 0.1.3 | Music Technology Group, Universitat Pompeu Fabra | AGPL-3.0 | `composer/public/vendor/essentia/`, unchanged from the npm package, with its `LICENSE` and a `NOTICE.md` giving checksums. Loaded only when **Beat from** is set to Essentia, and by the measuring tools. Under AGPL-3.0 §13 the source of a served copy must be offered to its users; this repository is that source |
 | [Meyda](https://meyda.js.org/) 5.6.3 | Hugh A. Rawlinson, Nevo Segal, Jakub Fiala and contributors | MIT | `composer/tools/vendor/meyda/`, with its `LICENSE.md`. Used only by the audio comparison tools, never by the composer |
-| [ws](https://github.com/websockets/ws) | Einar Otto Stangvik, Arnout Kazemier, Luigi Pinca and contributors | MIT | The composer server's WebSocket; installed by `npm install`, not copied here |
+| [ws](https://github.com/websockets/ws) | Einar Otto Stangvik, Arnout Kazemier, Luigi Pinca and contributors | MIT | The composer server's WebSocket: 8.22.0, unchanged from the npm package, in `composer/lib/vendor/ws/` with its `LICENSE` and a `NOTICE.md` giving checksums |
 
 ## Algorithms and ideas written here from their published descriptions
 

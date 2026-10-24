@@ -24,6 +24,7 @@ pattern that draws at random says little.
 - [Recording the preview](#recording-the-preview)
 - [The panel against the preview](#the-panel-against-the-preview)
 - [Beat-tracking methods surveyed](#beat-tracking-methods-surveyed)
+- [Aurora Bounce runs down](#aurora-bounce-runs-down)
 
 ## Colour of the patterns
 
@@ -223,3 +224,18 @@ through changes of texture. Candidates noted for later: TempoCNN (Essentia)
 for tempo, BeatNet for live beats and downbeats, and Beat This! offline as a
 reference with a beat time for every beat, which a test of music whose tempo
 floats would need.
+
+## Aurora Bounce runs down
+
+Asked because Bounce's balls lay still after a few minutes.
+`tools/measure-bounce.mjs` ran it in Node for ten minutes at 64×48. As
+ported, nothing puts energy back: the median ball's bounce fell from 0.90 of
+the panel in the first minute to 0.10 in the third, and all 64 balls lay on
+the floor from the fourth minute on. Upstream behaves the same; Aurora's
+playlist showed each pattern only briefly. Bounce now has its own settings
+(T54): each ball is kicked by its own part of the spectrum or by the beat,
+and one that settles is relaunched. With them, in silence, no ball lay on
+the floor in any minute (median 0.6 to 0.8 of the panel); on the simulated
+signal the heights follow its spectrum. Music at 0 with Keep bouncing off
+gives the original. Not measured: real music, and the panel.
+

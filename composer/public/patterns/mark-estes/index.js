@@ -1,6 +1,12 @@
+// Copyright Mark Estes (Table_Mark_Estes), adapted by Marc Merlin; JavaScript
+// port copyright 2026 Anjin <anjin@skyhighatry.com>.
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0: ../../licenses/table-mark-estes.txt.
+// This file is a modified, translated version of the sketch; the deliberate
+// differences are listed in ./NOTICE.md.
 // Pattern table for the Table_Mark_Estes port. Numbers are the sketch's own
 // pattern numbers; `setup` is that pattern's case in whatami() and `run` its
-// case in runpattern(). See ./NOTICE.md for provenance and licence status.
+// case in runpattern(). See ./NOTICE.md for provenance.
 import { TmeAnimation } from './runtime.js';
 import * as fx from './effects.js';
 import * as audio from './audio-effects.js';

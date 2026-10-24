@@ -9,6 +9,13 @@ JavaScript translation and browser integration added in the MatrixPrism composer
 FastLED primitives are translated from FastLED 3.5.0:
 https://github.com/FastLED/FastLED/tree/4d73cddfe4bd2b370ee882b6f68769bf7f8309f4
 
+Deliberate difference: Bounce has settings and audio added in MatrixPrism
+(BOUNCE_PARAMS in aurora-patterns.js). Upstream, nothing puts energy back
+and the balls settle on the floor within minutes; here each ball is kicked by
+its own part of the spectrum or by the beat, is relaunched when it settles,
+and falls at an adjustable gravity. Music 0 with Keep bouncing off and
+Gravity 1 is the original.
+
 Aurora: https://github.com/pixelmatix/aurora
 Copyright (c) 2014 Jason Coon
 

@@ -89,11 +89,14 @@ it makes, or in the folder named by `-- --evidence <dir>`.
 
 ## Run
 
-Requires Node.js 18 or newer.
+Requires Node.js 18 or newer, and nothing else: the composer has no npm
+dependencies, so there is no `npm install`. Its server's WebSocket library,
+[ws](https://github.com/websockets/ws), is kept unchanged in
+`lib/vendor/ws/` (see its `NOTICE.md`), and `.npmrc` turns off package
+install scripts should a dependency ever be added.
 
 ```sh
 cd composer
-npm install
 npm start -- --ddp wled-e1f2a3.local
 ```
 
@@ -460,11 +463,14 @@ Table_Mark_Estes69 Arduino sketch. The code lives in its own directory,
 | `audio-effects.js` | The audio-driven effect functions |
 | `decorations.js` | The occasional overlays drawn over a pattern |
 | `index.js` | The pattern table, keyed by the sketch's pattern numbers |
-| `NOTICE.md` | Provenance, licence status and known differences from the sketch |
+| `NOTICE.md` | Provenance, licence and known differences from the sketch |
 
-**Licence: none stated upstream.** The original sketch carries no licence,
-so this directory is not covered by the project's GPL-3.0 licence and should
-be removed if its authors ask. See `NOTICE.md` before reusing it.
+**Licence: Apache-2.0.** The sketch is licensed under the Apache License,
+Version 2.0 (its licence file is in upstream's `Table_Mark_Estes` directory,
+and its maintainer Marc Merlin confirmed it on 2026-10-23). The text and a
+notice are in `public/licenses/table-mark-estes.txt`; every file in the
+directory carries the SPDX tag and says it is a translated, modified version.
+See `NOTICE.md` for the provenance and the differences before reusing it.
 
 Ninety-four of the sketch's 199 pattern numbers are ported so far, along with
 the sketch's occasional decorations (rings, boxes, stars and confetti drawn

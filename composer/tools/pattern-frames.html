@@ -12,6 +12,7 @@ const options = new URLSearchParams(location.search);
 const W = Number(options.get('width') || 64), H = Number(options.get('height') || 32);
 const COUNT = Number(options.get('frames') || 8), EVERY = Number(options.get('every') || 6);
 const SCALE = Number(options.get('scale') || 4), DT = 1 / 30;
+const WARM = Math.round(Number(options.get('warm') || 2) / DT);
 let result;
 try {
   const { PATTERNS } = await import('./patterns.js');
@@ -49,7 +50,7 @@ try {
       rawSpectrum: audio.plotInput, patternParams: { [pattern.id]: params }, overlays: { enabled: false, elements: [] },
       wallTime: 0,
     });
-    if (n < 60 || (n - 60) % EVERY) continue;
+    if (n < WARM || (n - WARM) % EVERY) continue;
     const image = frame.getContext('2d').createImageData(W, H);
     for (let i = 0, j = 0; i < rgb.length; i += 3, j += 4) {
       image.data[j] = rgb[i]; image.data[j + 1] = rgb[i + 1]; image.data[j + 2] = rgb[i + 2]; image.data[j + 3] = 255;

@@ -1,3 +1,9 @@
+// Copyright Mark Estes (Table_Mark_Estes), adapted by Marc Merlin; JavaScript
+// port copyright 2026 Anjin <anjin@skyhighatry.com>.
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0: ../../licenses/table-mark-estes.txt.
+// This file is a modified, translated version of the sketch; the deliberate
+// differences are listed in ./NOTICE.md.
 // The sketch's "fancy" decorations: occasional rings, boxes, stars and
 // confetti drawn over a pattern, chosen by checkfancy(). Ported from
 // Table_Mark_Estes_Impl.h; see ./NOTICE.md.

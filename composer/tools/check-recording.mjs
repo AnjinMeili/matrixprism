@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocket } from 'ws';
+import { WebSocket } from '../lib/vendor/ws/wrapper.mjs';
 import { CHROME } from './headless.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import WebSocket from 'ws';
+import WebSocket from '../lib/vendor/ws/wrapper.mjs';
 import {
   DDP_HEADER_LENGTH, DDP_MAX_PAYLOAD, DdpSender, buildDdpPackets, parseMatrixInfo,
 } from '../lib/ddp.js';

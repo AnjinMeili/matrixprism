@@ -2,6 +2,7 @@
 // translated from C++ to stateful JavaScript. See ./licenses/aurora.txt.
 // Copyright (c) 2014 Jason Coon, Daniel Shiffman, Noel Bundy,
 // Stefan Petrick, and (c) 2008 Windell H Oskay. MIT licensed.
+// Bounce's settings and its response to audio are added here (T54).
 import {
   AURORA_SIZE, AuroraBuffer, byte, sin8, cos8, mapsin8, mapcos8,
   beatsin8, beatcos8, quadwave8, palette, inoise8,
@@ -276,6 +277,29 @@ class Attract extends AuroraAnimation {
   }
 }
 
+// Bounce's own settings, an addition to the original. Upstream, nothing puts
+// energy back, so every ball settles on the floor within a few minutes.
+export const BOUNCE_PARAMS = [
+  { id: 'kicks', name: 'Kicks from', type: 'choice', default: 'spectrum',
+    choices: [{ id: 'spectrum', name: 'Spectrum' }, { id: 'beat', name: 'Beat' }],
+    help: 'Spectrum: each ball follows its own part of the spectrum, bass on the left, treble on the right. ' +
+      'Beat: every ball is kicked on each beat, harder with more bass' },
+  { id: 'music', name: 'Music', min: 0, max: 1, step: 0.05, default: 0.75,
+    help: 'How high the music kicks the balls; at 0 they bounce and settle as in the original' },
+  { id: 'gravity', name: 'Gravity', min: 0.5, max: 4, step: 0.1, default: 1,
+    help: 'How fast the balls fall; 1 is the original. Higher makes quicker bounces that keep up with the music' },
+  { id: 'spread', name: 'Spread', min: 0, max: 1, step: 0.05, default: 0.3,
+    help: 'Beat only: how much the kicks differ from ball to ball, so they do not rise in step' },
+  { id: 'keepAlive', name: 'Keep bouncing', type: 'bool', default: true,
+    help: 'Relaunch a ball that has lain on the floor for a few seconds, so the pattern never goes still' },
+];
+const BOUNCE_DEFAULTS = Object.fromEntries(BOUNCE_PARAMS.map((param) => [param.id, param.default]));
+// The original's gravity, per 15 ms step, at Gravity 1.
+const GRAVITY = 0.0125;
+const FLOOR = SIZE - 1;
+// A ball whose next peak is lower than this is lying on the floor.
+const RESTING = 0.5;
+
 class Bounce extends AuroraAnimation {
   constructor(random, width, height) {
     super(15, random, width, height);
@@ -289,12 +313,62 @@ class Bounce extends AuroraAnimation {
       boid.maxspeed = 10;
       return boid;
     });
+    this.params = BOUNCE_DEFAULTS;
+    this.audio = {};
+    this.spectrum = null;
+    this.kick = false;
+    this.lastBeat = 0;
+    // Each ball's recent level in its part of the spectrum, falling slowly.
+    this.levels = new Float32Array(this.boids.length);
+    this.resting = new Float32Array(this.boids.length);
+    this.waits = Float32Array.from(this.boids, () => this.restWait());
+  }
+
+  renderFrame(state, params = {}) {
+    this.params = { ...BOUNCE_DEFAULTS, ...params };
+    this.audio = state.audio ?? {};
+    this.spectrum = state.spectrum ?? null;
+    // A beat kicks the balls as it arrives.
+    const beat = this.audio.beat ?? 0;
+    if (beat > 0.8 && this.lastBeat <= 0.8) this.kick = true;
+    this.lastBeat = beat;
+    return super.renderFrame(state);
+  }
+
+  restWait() {
+    return 2000 + this.random() * 4000;
+  }
+
+  // Ball i's part of the spectrum, 0 to 1: bass on the left.
+  band(i) {
+    const s = this.spectrum, n = this.boids.length;
+    const from = Math.floor(i * s.length / n);
+    const to = Math.max(from + 1, Math.floor((i + 1) * s.length / n));
+    let peak = 0;
+    for (let b = from; b < to; ++b) peak = Math.max(peak, s[b]);
+    return peak / 255;
+  }
+
+  // How high above the floor a ball will rise before it falls.
+  peak(boid, gravity) {
+    return FLOOR - boid.y + (boid.vy < 0 ? boid.vy * boid.vy / (2 * gravity) : 0);
+  }
+
+  // Sends a ball up to `height` above the floor, unless it is going higher.
+  lift(boid, height, gravity) {
+    if (height > this.peak(boid, gravity))
+      boid.vy = -Math.sqrt(2 * gravity * (height - (FLOOR - boid.y)));
   }
 
   draw() {
+    const { kicks, music, spread, keepAlive } = this.params;
+    const gravity = GRAVITY * this.params.gravity;
+    const kick = this.kick;
+    this.kick = false;
     this.buffer.dim(170);
-    for (const boid of this.boids) {
-      boid.ay += 0.0125;
+    this.boids.forEach((boid, i) => {
+      let landed = false;
+      boid.ay += gravity;
       const oldY = boid.y;
       boid.update();
       const color = this.colour(boid.color);
@@ -305,11 +379,33 @@ class Bounce extends AuroraAnimation {
           this.point(boid.x, y, color);
         this.point(boid.x, boid.y, color);
       }
-      if (boid.y >= SIZE - 1) {
-        boid.y = SIZE - 1;
+      if (boid.y >= FLOOR) {
+        boid.y = FLOOR;
         boid.vy *= -1;
+        landed = true;
       }
-    }
+      if (music > 0 && kicks === 'spectrum' && this.spectrum) {
+        // Each landing goes back up to the ball's recent level. A level that
+        // jumps also catches a ball on its way down, if it has fallen below
+        // half the new height, but never one near its top, or the ball would
+        // hang in the air on every beat.
+        const level = this.band(i);
+        const jump = level > this.levels[i] + 0.1;
+        this.levels[i] = Math.max(level, this.levels[i] - 0.02);
+        const height = music * this.levels[i] * FLOOR;
+        if (landed || (jump && boid.vy > 0 && FLOOR - boid.y < height / 2)) this.lift(boid, height, gravity);
+      } else if (music > 0 && kicks === 'beat' && kick) {
+        const bass = this.audio.bass ?? 0;
+        this.lift(boid, music * (0.4 + 0.6 * bass) * (1 - spread * this.random()) * FLOOR, gravity);
+      }
+      if (!keepAlive) return;
+      this.resting[i] = this.peak(boid, gravity) < RESTING ? this.resting[i] + this.interval : 0;
+      if (this.resting[i] > this.waits[i]) {
+        this.lift(boid, (0.5 + 0.5 * this.random()) * FLOOR, gravity);
+        this.resting[i] = 0;
+        this.waits[i] = this.restWait();
+      }
+    });
   }
 }
 
@@ -731,7 +827,12 @@ class Wave extends AuroraAnimation {
 
 const definitions = [
   ['attract', 'Attract', Attract, 'Gravitational particles orbit a central attractor'],
-  ['bounce', 'Bounce', Bounce, 'Gravity-driven coloured bouncing columns'],
+  ['bounce', 'Bounce', Bounce, 'Gravity-driven coloured bouncing columns', {
+    audio: 'Gravity-driven coloured bouncing columns; each ball is kicked back up by its own part of ' +
+      'the spectrum or by the beat, and relaunched when it settles (added here: upstream they settle for good)',
+    audioReactive: true,
+    params: BOUNCE_PARAMS,
+  }],
   ['cube', 'Cube', Cube, 'Perspective cube with bright front edges and dim back edges'],
   ['flock', 'Flock', Flock, 'Reynolds flocking with separation, alignment, cohesion, and a predator'],
   ['flowfield', 'Flow Field', FlowField, 'Particles follow FastLED 3D noise with persistent trails'],
@@ -745,10 +846,11 @@ const definitions = [
   ['wave', 'Wave', Wave, 'Quadratic waves with random orientation and optional reflection'],
 ];
 
-export const AURORA_PATTERNS = definitions.map(([id, name, Pattern, description]) => ({
+export const AURORA_PATTERNS = definitions.map(([id, name, Pattern, description, extra = {}]) => ({
   id: `aurora-${id}`,
   name: `Aurora ${name}`,
   audio: `${description} (original demo; no audio modulation)`,
   controls: Pattern === Flock ? ['aurora', 'flock'] : ['aurora'],
   createInstance: (width = SIZE, height = SIZE, random = Math.random) => new Pattern(random, width, height),
+  ...extra,
 }));

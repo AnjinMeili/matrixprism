@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer } from './lib/vendor/ws/wrapper.mjs';
 import { DDP_PORT, DdpSender, parseMatrixInfo } from './lib/ddp.js';
 import { hostName, servedNames } from './lib/hosts.js';
 import { discoverReceivers } from './lib/mdns.js';

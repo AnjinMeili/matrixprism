@@ -377,3 +377,73 @@ test('Aurora diameter changes preserve state and reject invalid sizes', () => {
     assert.ok(animation.frames > 1);
   }
 });
+
+// Bounce's settings (T54): upstream, nothing puts energy back into the balls.
+const FLOOR = 31;
+const silence = { audio: {}, spectrum: new Uint8Array(256) };
+
+// Runs Bounce for `seconds` from `from`, at 10 frames a second, and returns
+// how high each ball got above the floor.
+function bounceHeights(bounce, from, seconds, params, frame = () => silence) {
+  const tops = bounce.boids.map(() => 0);
+  for (let n = 1; n <= seconds * 10; ++n) {
+    const time = from + n / 10;
+    bounce.renderFrame({ auroraTime: time, ...frame(time) }, params);
+    bounce.boids.forEach((boid, i) => { tops[i] = Math.max(tops[i], FLOOR - boid.y); });
+  }
+  return tops;
+}
+
+const ORIGINAL = { music: 0, keepAlive: false };
+
+test('Bounce with Music at 0 and Keep bouncing off settles on the floor, as upstream', () => {
+  const bounce = create('bounce');
+  bounceHeights(bounce, 0, 300, ORIGINAL);
+  assert.ok(Math.max(...bounceHeights(bounce, 300, 10, ORIGINAL)) < 0.5);
+});
+
+test('Bounce keeps bouncing in silence with Keep bouncing on', () => {
+  const bounce = create('bounce');
+  bounceHeights(bounce, 0, 300, {});
+  const tops = bounceHeights(bounce, 300, 30, {});
+  assert.ok(Math.min(...tops) > 5, `every ball relaunched: ${Math.min(...tops)}`);
+});
+
+test('each Bounce ball follows its own part of the spectrum, bass on the left', () => {
+  const bounce = create('bounce');
+  const params = { keepAlive: false };
+  bounceHeights(bounce, 0, 300, params);
+  const spectrum = new Uint8Array(256).fill(255, 0, 64);
+  const tops = bounceHeights(bounce, 300, 3, params, () => ({ audio: {}, spectrum }));
+  assert.ok(Math.min(...tops.slice(0, 8)) > 0.6 * FLOOR, 'the bass quarter rises');
+  assert.ok(Math.max(...tops.slice(8)) < 0.5, 'the rest stays on the floor');
+});
+
+test('a beat kicks every Bounce ball, by the bass and Music', () => {
+  const bounce = create('bounce');
+  const params = { kicks: 'beat', music: 1, spread: 0, keepAlive: false };
+  bounceHeights(bounce, 0, 300, params);
+  const beatAt = (time) => ({ audio: { beat: time < 300.15 ? 1 : 0, bass: 1 }, spectrum: silence.spectrum });
+  const tops = bounceHeights(bounce, 300, 3, params, beatAt);
+  assert.ok(Math.min(...tops) > 0.9 * FLOOR, `every ball near the top: ${Math.min(...tops)}`);
+});
+
+test('a higher Gravity makes quicker bounces to the same height', () => {
+  const landings = (gravity) => {
+    const bounce = create('bounce');
+    const params = { gravity, keepAlive: false };
+    bounceHeights(bounce, 0, 300, params);
+    const spectrum = new Uint8Array(256).fill(255, 0, 8);
+    // Ten seconds at 100 frames a second, counting each turn from falling to rising.
+    let count = 0, lastY = bounce.boids[0].y, falling = false;
+    for (let n = 1; n <= 1000; ++n) {
+      bounce.renderFrame({ auroraTime: 300 + n / 100, audio: {}, spectrum }, params);
+      const y = bounce.boids[0].y;
+      if (falling && y < lastY) ++count;
+      if (y !== lastY) falling = y > lastY;
+      lastY = y;
+    }
+    return count;
+  };
+  assert.ok(landings(4) > 1.5 * landings(1), `${landings(4)} landings against ${landings(1)}`);
+});

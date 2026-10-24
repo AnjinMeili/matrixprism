@@ -3,7 +3,7 @@ import test from 'node:test';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { WebSocket } from 'ws';
+import { WebSocket } from '../lib/vendor/ws/wrapper.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
