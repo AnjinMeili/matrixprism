@@ -148,8 +148,62 @@ sharing file should play in ordinary media players without special setup.
   `main` unchanged until tests pass and Anjin accepts. Push separately
   only on request.
 
+## Go live and enlarged output (T58)
+
+**Go live** is in the composer's Record bar: it sends the composed preview
+and the live audio input to YouTube, enlarged to a chosen size, and saves
+nothing. The recorder's capture is reused; the server pipes each uploaded
+chunk into FFmpeg (`lib/live.js`). The key comes only from the server's
+`YOUTUBE_STREAM_KEY`, never the page; the destination is fixed by the server.
+Details in [composer-spec.md](composer-spec.md#go-live-t58).
+
+`npm run check-live` sends a known flash-and-beep signal to the real server
+and measures what a local RTMP receiver gets: the size asked for, each flash
+meeting its beep within one frame (3 ms measured), no drift over 8 seconds,
+the key in no answer or log, nothing written to the recording folder.
+`npm run check-live-page` presses the real button in headless Chrome with a
+fake microphone at a custom size and checks the locks, that picture and audio
+arrive, and that the key is in neither the page nor the server's output.
+Tried once against a private YouTube stream; delay, sync by ear and a long
+run have not been measured. Not covered: Safari.
+
+### The `stream-out` tool
+
+`composer/tools/stream-out.mjs` sends a recording on, enlarged to a chosen
+size, to an MP4 or to a live RTMP stream such as YouTube's. It is separate
+from the composer: start it, then press Record. It follows the recording the
+server is already writing (`capture.webm.partial`, the WebM with the picture
+and the audio), has FFmpeg enlarge it and sends picture and audio on. Stop
+in the composer ends the stream; the usual MP4 is still saved.
+
+- The composer does not draw a second picture. The enlarged picture is the
+  panel-size picture scaled up, nearest-neighbour by default so the panel's
+  pixels stay square and sharp (`--smooth` for smooth scaling). It adds no
+  fine detail.
+- A file written with a bare name, such as `--to talk.mp4`, is saved in the
+  recording's own folder, beside its `preview.mp4`.
+- The stream key is read from `YOUTUBE_STREAM_KEY`, is removed from anything
+  the tool prints, and is never saved. FFmpeg's command line holds it while
+  the stream runs.
+- A stream has a fixed video bitrate (about 4.1 Mbit/s at 1280×720). A file
+  keeps constant quality, which measured 6.6 to 13.1 Mbit/s at 1280×720
+  depending on the picture; `--kbps` fixes it for a file too.
+- Audio and picture stay together: the check below measures each flash
+  against its beep.
+- Delay is a few seconds (the browser's one-second chunks and FFmpeg's
+  buffering); not measured against a real stream.
+- Record's limits still apply: an hour and 4 GB a session.
+
+`npm run check-stream-out` writes a known flash-and-beep signal into a fake
+recording folder as the server would, runs the tool to an MP4 and to a local
+RTMP receiver, and checks the size and that each flash meets its beep within
+one frame with no drift. Not covered: the composer's own recording, a real
+input, YouTube, or a run longer than 8 seconds. It cannot join a recording
+already under way; Go live can be pressed at any time.
+
 ## Deferred
 
-Higher-resolution rendering, arbitrary export sizes, receiver/remote recording,
-streaming credentials, YouTube integration, broadcast reconnection, a second
+Higher-resolution rendering (drawing again at a larger size, which
+`stream-out` does not do), receiver/remote recording, broadcast
+reconnection, a second
 audio source, pause/resume and post-recording HandBrake automation.

@@ -2,8 +2,10 @@ export const RECORDING_QUEUE_BYTES = 16 * 1024 * 1024;
 export const RECORDING_CHUNK_BYTES = 8 * 1024 * 1024;
 
 export class PreviewRecorder {
-  constructor(onState = () => {}) {
+  constructor(onState = () => {}, api = '/api/recordings', maxMs = 3600000) {
     this.onState = onState;
+    this.api = api;
+    this.maxMs = maxMs;
     this.state = 'idle';
     this.session = null;
   }
@@ -24,7 +26,7 @@ export class PreviewRecorder {
     return result;
   }
 
-  async start(canvas, audioStream, encoder = 'software') {
+  async start(canvas, audioStream, encoder = 'software', extra = {}) {
     if (this.busy) return;
     const generation = this.generation = (this.generation ?? 0) + 1;
     this.recorder = null;
@@ -50,9 +52,9 @@ export class PreviewRecorder {
       this.sequence = 0;
       this.pump = null;
       this.frames = 0;
-      this.session = await this.request('/api/recordings', { method: 'POST',
+      this.session = await this.request(this.api, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ width: this.width, height: this.height, mimeType, encoder }) });
+        body: JSON.stringify({ width: this.width, height: this.height, mimeType, encoder, ...extra }) });
       this.picture = canvas.captureStream(0);
       this.videoTrack = this.picture.getVideoTracks()[0];
       this.recorder = new MediaRecorder(new MediaStream([this.videoTrack, ...audioStream.getAudioTracks()]), {
@@ -98,7 +100,7 @@ export class PreviewRecorder {
       }
       this.videoTrack.requestFrame();
       ++this.frames;
-      if (performance.now() - this.started > 3600000) this.stop();
+      if (performance.now() - this.started > this.maxMs) this.stop();
     } catch (error) {
       this.fail(error);
     }
@@ -110,7 +112,7 @@ export class PreviewRecorder {
     this.pump = (async () => {
       while (generation === this.generation && this.queue.length && this.busy) {
         const chunk = this.queue[0];
-        await this.request(`/api/recordings/${this.session.id}/chunk?sequence=${this.sequence}`, {
+        await this.request(`${this.api}/${this.session.id}/chunk?sequence=${this.sequence}`, {
           method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: chunk.data,
         });
         if (generation !== this.generation) return;
@@ -138,7 +140,7 @@ export class PreviewRecorder {
     this.cleanup();
     this.queue = [];
     if (session?.id)
-      await this.request(`/api/recordings/${session.id}/cancel`, { method: 'POST' }).catch(() => {});
+      await this.request(`${this.api}/${session.id}/cancel`, { method: 'POST' }).catch(() => {});
   }
 
   async stop() {
@@ -159,14 +161,14 @@ export class PreviewRecorder {
         await this.pump;
       }
       if (generation !== this.generation || this.state === 'error') return;
-      const finalized = await this.request(`/api/recordings/${this.session.id}/finish`, { method: 'POST' });
+      const finalized = await this.request(`${this.api}/${this.session.id}/finish`, { method: 'POST' });
       if (generation !== this.generation || this.state === 'error') return;
       this.session = finalized;
       this.update('finalizing');
       while (generation === this.generation && this.state === 'finalizing') {
         await new Promise((resolve) => setTimeout(resolve, 500));
         if (generation !== this.generation || this.state !== 'finalizing') return;
-        const result = await this.request(`/api/recordings/${this.session.id}`);
+        const result = await this.request(`${this.api}/${this.session.id}`);
         if (generation !== this.generation) return;
         this.session = result;
         if (this.session.state === 'error') throw new Error(this.session.error);
@@ -179,6 +181,6 @@ export class PreviewRecorder {
 
   abandon() {
     if (this.busy && this.session?.id)
-      navigator.sendBeacon(`/api/recordings/${this.session.id}/cancel`, '');
+      navigator.sendBeacon(`${this.api}/${this.session.id}/cancel`, '');
   }
 }

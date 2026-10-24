@@ -13,6 +13,7 @@ import { hostName, servedNames } from './lib/hosts.js';
 import { discoverReceivers } from './lib/mdns.js';
 import { versionInfo } from './lib/version.js';
 import { RecordingService, recordingRequest } from './lib/recording.js';
+import { LiveService, liveRequest } from './lib/live.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
@@ -34,6 +35,7 @@ const { values: options } = parseArgs({
     port: { type: 'string', default: '8080' },
     listen: { type: 'string', default: '127.0.0.1' },
     'record-dir': { type: 'string' },
+    'live-ingest': { type: 'string' },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
@@ -51,7 +53,9 @@ if (options.help) {
   --ddp-port  DDP UDP port on the receiver (default 4048)
   --port      HTTP port for the UI (default 8080)
   --listen    Interface for the UI (default 127.0.0.1, local only)
-  --record-dir Recording output folder (default ~/Movies/MatrixPrism)`);
+  --record-dir Recording output folder (default ~/Movies/MatrixPrism)
+  --live-ingest RTMP address for Go live, without the key (default YouTube's); the key is read from
+               YOUTUBE_STREAM_KEY`);
   process.exit(0);
 }
 
@@ -67,6 +71,7 @@ function parsePort(text, name, allowZero = false) {
 const httpPort = parsePort(options.port, '--port', true);
 const defaultDdpPort = parsePort(options['ddp-port'], '--ddp-port');
 const recordings = new RecordingService({ directory: options['record-dir'] });
+const live = new LiveService({ ...(options['live-ingest'] ? { ingest: options['live-ingest'] } : {}) });
 
 function sendJson(response, status, body) {
   response.writeHead(status, {
@@ -167,6 +172,11 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/api/recordings' || url.pathname.startsWith('/api/recordings/')) {
     request.setTimeout(15000, () => request.destroy());
     await recordingRequest(recordings, request, response, url);
+    return;
+  }
+  if (url.pathname === '/api/live' || url.pathname.startsWith('/api/live/')) {
+    request.setTimeout(15000, () => request.destroy());
+    await liveRequest(live, request, response, url);
     return;
   }
   if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -285,7 +295,7 @@ server.on('error', (error) => {
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.once(signal, () => recordings.close().finally(() => process.exit(0)));
+  process.once(signal, () => Promise.all([recordings.close(), live.close()]).finally(() => process.exit(0)));
 }
 
 server.listen(httpPort, options.listen, () => {

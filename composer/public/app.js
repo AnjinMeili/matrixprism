@@ -158,13 +158,20 @@ const saveSettings = () => {
 };
 
 const audio = new AudioAnalyzer();
+// Recording and going live both hold the matrix size, the receiver and the
+// audio input; only one runs at a time.
+function syncCaptureControls() {
+  const recordingBusy = recording.busy, liveBusy = live.busy;
+  $('record').disabled = liveBusy || (recordingBusy && recording.state !== 'recording');
+  $('go-live').disabled = !liveAvailable || recordingBusy || (liveBusy && live.state !== 'recording');
+  for (const id of ['recording-encoder', 'live-size', 'live-width', 'live-height', 'width', 'height', 'detect', 'host', 'receiver-list', 'audio-source', 'audio-retake'])
+    $(id).disabled = recordingBusy || liveBusy;
+}
+let liveAvailable = false;
 const recording = new PreviewRecorder((result) => {
-  const busy = recording.busy;
   $('record').textContent = result.state === 'recording' ? 'Stop recording' : 'Record';
-  $('record').disabled = busy && result.state !== 'recording';
   document.querySelector('.recording-bar').dataset.state = result.state;
-  for (const id of ['recording-encoder', 'width', 'height', 'detect', 'host', 'receiver-list', 'audio-source', 'audio-retake'])
-    $(id).disabled = busy;
+  syncCaptureControls();
   const labels = { idle: 'Not recording', starting: 'Starting recording...', recording: 'Recording',
     stopping: 'Saving captured media...', finalizing: 'Encoding MP4...' };
   $('recording-status').textContent = result.state === 'saved' ? `Saved: ${result.file}`
@@ -173,6 +180,15 @@ const recording = new PreviewRecorder((result) => {
   $('recording-download').hidden = result.state !== 'saved';
   if (result.state === 'saved') $('recording-download').href = `/api/recordings/${result.id}/file`;
 });
+const live = new PreviewRecorder((result) => {
+  $('go-live').textContent = result.state === 'recording' ? 'Stop live' : 'Go live';
+  document.querySelector('.live-group').dataset.state = result.state;
+  syncCaptureControls();
+  const labels = { idle: 'Not live', starting: 'Going live...', recording: 'LIVE', stopping: 'Ending the stream...',
+    finalizing: 'Ending the stream...', saved: 'The stream has ended' };
+  $('live-status').textContent = result.state === 'error' ? `Live failed: ${result.error}`
+    : `${labels[result.state] ?? result.state}${result.outWidth && result.state !== 'saved' ? ` - ${result.outWidth}x${result.outHeight}` : ''}`;
+}, '/api/live', 12 * 3600 * 1000);
 // The Monitor view's beat graph, tempo trace and log; fed every frame.
 const monitor = new TempoMonitor(256, 192, SHARED_BAR_HISTORY);
 let renderer;
@@ -460,10 +476,10 @@ async function detectSize() {
 }
 
 function applyMatrixSize(width, height) {
-  if (recording.busy && (width !== settings.width || height !== settings.height)) {
+  if ((recording.busy || live.busy) && (width !== settings.width || height !== settings.height)) {
     $('width').value = settings.width;
     $('height').value = settings.height;
-    showError('Stop recording before changing the matrix dimensions.');
+    showError('Stop recording or the live stream before changing the matrix dimensions.');
     return;
   }
   const wasStreaming = link.streaming;
@@ -1291,9 +1307,9 @@ async function populateAudioInputs() {
 }
 
 async function selectAudioSource(value) {
-  if (recording.busy) {
+  if (recording.busy || live.busy) {
     $('audio-source').value = settings.audioSource;
-    showError('Stop recording before changing the audio input.');
+    showError('Stop recording or the live stream before changing the audio input.');
     return;
   }
   showError('');
@@ -1468,7 +1484,23 @@ function bindMatrixControls() {
       await recording.start($('preview'), audio.stream, $('recording-encoder').value);
     }
   });
-  window.addEventListener('pagehide', () => recording.abandon());
+  window.addEventListener('pagehide', () => { recording.abandon(); live.abandon(); });
+  $('live-size').addEventListener('change', () => { $('live-custom').hidden = $('live-size').value !== 'custom'; });
+  $('go-live').addEventListener('click', async () => {
+    if (live.state === 'recording') await live.stop();
+    else {
+      const [outWidth, outHeight] = $('live-size').value === 'custom'
+        ? [Number($('live-width').value), Number($('live-height').value)]
+        : $('live-size').value.split('x').map(Number);
+      if (audio.context) await audio.context.resume().catch(() => {});
+      await live.start($('preview'), audio.stream, 'software', { outWidth, outHeight });
+    }
+  });
+  fetch('/api/live').then((response) => response.json()).then(({ available }) => {
+    liveAvailable = available;
+    if (!available) $('live-status').textContent = 'Set YOUTUBE_STREAM_KEY to go live';
+    syncCaptureControls();
+  }).catch(() => {});
   $('stream').addEventListener('click', () => {
     if (link.streaming || link.pendingStart)
       stopStreaming(settings.blackOnStop);
@@ -2360,9 +2392,11 @@ function tick(now) {
   } catch (error) {
     showError(`${view.pattern.name}: ${error.message}`);
     if (recording.busy) recording.fail(error);
+    if (live.busy) live.fail(error);
     return;
   }
   recording.frame(audio.stream);
+  live.frame(audio.stream);
   view.rendered += 1;
   drawQuadMonitors(now, frame, previewDue);
   const spectrumPattern = [view.pattern, view.layer?.pattern].find((p) => p?.spectrumPlot);
@@ -2463,6 +2497,7 @@ async function init() {
     event.preventDefault();
     view.contextLost = true;
     if (recording.busy) recording.fail(new Error('Graphics context lost during recording'));
+    if (live.busy) live.fail(new Error('Graphics context lost during the live stream'));
     showError('Graphics context lost; waiting for the browser to restore it.');
   });
   $('preview').addEventListener('webglcontextrestored', () => {
@@ -2502,6 +2537,7 @@ async function init() {
     clock.terminate();
     stopStreaming(settings.blackOnStop);
     if (recording.busy) recording.fail(new Error('Frame clock stopped during recording'));
+    if (live.busy) live.fail(new Error('Frame clock stopped during the live stream'));
     showError(`Frame clock failed: ${event.message}`);
   };
   clock.postMessage({ type: 'start', fps: settings.fps });

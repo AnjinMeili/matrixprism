@@ -38,6 +38,9 @@ the measurements behind it are in [findings.md](findings.md).
   settings kept for each receiver, and a list of receivers found by mDNS.
 - Recording the final preview with the live audio to an MP4 (Chrome and
   FFmpeg).
+- Go live: the preview and the live audio sent to YouTube, enlarged to a
+  chosen size, from the Record bar; and `composer/tools/stream-out.mjs`,
+  which does the same for a recording under way, to an MP4 or a stream.
 
 ## How it is checked
 
@@ -59,6 +62,9 @@ the measurements behind it are in [findings.md](findings.md).
   hardware.
 - Stereo capture with a real stereo input.
 - Recording over a 30-minute session: sync drift, memory and CPU.
+- Go live over a long run (delay, sync by ear, CPU); it has been tried once
+  on a private YouTube stream and against a local receiver with a test signal.
+  `stream-out` has only had the test signal.
 - The receiver's latest changes on the Pi: the recording writer thread,
   address refresh and `scene-tool recover`.
 

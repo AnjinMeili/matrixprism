@@ -32,6 +32,22 @@ command path. Recording is local-only, even if the UI is served to the LAN.
   retrieves a copy. Output defaults to `~/Movies/MatrixPrism/preview-*/`;
   set server `--record-dir <directory>` to change it.
 
+### Going live
+
+Go live, in the same bar, sends the preview and the live audio input to
+YouTube as it runs, enlarged to a Size you choose (1280×720 by default, or a
+custom width and height). Nothing is saved. The stream key comes from the
+server's environment, never the page: copy it from YouTube Studio (Go live,
+Stream) and start the composer with
+`YOUTUBE_STREAM_KEY=<key> node server.js`. Without it Go live is disabled and
+says so. Use a private or unlisted stream to try it, and reset the key in
+Studio if it is ever shared. Press Stop live to end it. `--live-ingest` names
+another RTMP address, for testing against a local receiver.
+
+`node tools/stream-out.mjs --size 1280x720 --to out.mp4` makes an enlarged
+copy of a recording as it is made (`--to youtube` sends it live); see
+[recording-plan.md](../docs/recording-plan.md).
+
 Dimensions, receiver and audio-source controls lock while busy. Odd sizes
 are padded at the right/bottom, never scaled. Final brightness/gamma,
 overlays, sparkles and blackout are included, not physical panel behaviour.

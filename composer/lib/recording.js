@@ -168,7 +168,7 @@ export class RecordingService {
   }
 }
 
-async function readBody(request, limit) {
+export async function readBody(request, limit) {
   let length = 0;
   const chunks = [];
   for await (const chunk of request) {
@@ -179,16 +179,22 @@ async function readBody(request, limit) {
   return Buffer.concat(chunks);
 }
 
+// Recording and live streaming are for a page on this computer: a request
+// must come from loopback, and a POST must carry this server's own Origin.
+export function localSameOrigin(request) {
+  const address = request.socket.remoteAddress ?? '';
+  const origin = request.headers.origin;
+  return (address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.')) &&
+    !(origin && origin !== `http://${request.headers.host}`) &&
+    !(request.method !== 'GET' && !origin);
+}
+
 export async function recordingRequest(service, request, response, url) {
   const json = (status, body) => {
     response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     response.end(JSON.stringify(body));
   };
-  const address = request.socket.remoteAddress ?? '';
-  const origin = request.headers.origin;
-  if (!(address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.')) ||
-      (origin && origin !== `http://${request.headers.host}`) ||
-      (request.method !== 'GET' && !origin)) {
+  if (!localSameOrigin(request)) {
     json(403, { error: 'Recording requires a same-origin page on this computer' });
     return;
   }

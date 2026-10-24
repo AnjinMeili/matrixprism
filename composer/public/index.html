@@ -29,6 +29,19 @@
     </select></label>
     <output id="recording-status" role="status">Not recording</output>
     <a id="recording-download" hidden>Download MP4</a>
+    <span class="live-group" role="group" aria-label="Live stream">
+    <button id="go-live" type="button" title="Send the composed preview and the live audio input to YouTube">Go live</button>
+    <label>Size <select id="live-size">
+      <option value="1280x720">1280×720</option>
+      <option value="1920x1080">1920×1080</option>
+      <option value="854x480">854×480</option>
+      <option value="640x360">640×360</option>
+      <option value="custom">Custom…</option>
+    </select></label>
+    <label id="live-custom" hidden><input id="live-width" type="number" min="2" max="4096" step="2" value="1280" aria-label="Live width">
+      × <input id="live-height" type="number" min="2" max="4096" step="2" value="720" aria-label="Live height"></label>
+    <output id="live-status" role="status">Not live</output>
+    </span>
   </section>
 
   <main>

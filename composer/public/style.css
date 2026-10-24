@@ -44,6 +44,11 @@ header button { margin-top: 0; }
 #recording-status { flex: 1; min-width: 160px; overflow-wrap: anywhere; color: var(--muted); }
 #recording-download { color: var(--accent); }
 .recording-bar[data-state="recording"] #record { color: var(--danger); border-color: var(--danger); }
+.live-group { display: contents; }
+.live-group input[type="number"] { width: 5.5em; margin: 0; }
+#live-status { flex: 1; min-width: 160px; overflow-wrap: anywhere; color: var(--muted); }
+.live-group[data-state="recording"] #go-live { color: var(--danger); border-color: var(--danger); }
+.live-group[data-state="error"] #live-status { color: var(--danger); }
 .recording-bar[data-state="error"] #recording-status { color: var(--danger); }
 
 .views { display: flex; gap: 4px; margin: 0 auto 0 8px; }

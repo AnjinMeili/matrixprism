@@ -75,6 +75,9 @@ npm run check-layout         # composer: after any change to layout.js, layout-v
 npm run check-quad-view      # composer: after any change to the quad mixer's view or its wiring in app.js
 npm run check-monitor-nudge  # composer: after any change to beat-fold.js, monitor.js or the Monitor view
 npm run check-monitor-key    # composer: after any change to key-detector.js, key-wheel.js or the Monitor's Key panel
+npm run check-stream-out     # composer: after any change to tools/stream-out.mjs or lib/stream-out.js
+npm run check-live           # composer: after any change to lib/live.js or the live endpoint in server.js
+npm run check-live-page      # composer: after any change to the Go live controls in app.js or index.html
 make -C receiver test         # receiver protocol, recording, scene tool
 ```
 
@@ -141,6 +144,16 @@ make -C receiver test         # receiver protocol, recording, scene tool
   detector takes 8A back after eight seconds, the lock keeps 5A, Detect hands
   it back; and the Monitor's notes are info panes. About a minute.
   `-- --screenshot file.png` saves the wheel and an open info pane.
+- `npm run check-stream-out` writes a known flash-and-beep signal into a fake
+  recording folder, runs `tools/stream-out.mjs` to an MP4 and to a local RTMP
+  receiver, and checks the picture size and that each flash meets its beep
+  within one frame with no drift. It needs ffmpeg and ffprobe, and port 19350
+  free. It does not use the composer, a real input or YouTube.
+- `npm run check-live` sends the known flash-and-beep signal to the real
+  server's `/api/live` and measures what a local RTMP receiver gets (size,
+  flash against beep, the key in no log). `npm run check-live-page` presses
+  Go live in headless Chrome with a fake microphone. Both need ffmpeg and
+  ffprobe and ports 19351 and 19352 free; neither uses YouTube.
 - `node tools/record-input.mjs <device name part> <seconds> <out.wav>`
   records an input, such as BlackHole, through Chrome, every
   sample; ffmpeg's avfoundation capture on macOS has been measured dropping about 12% of the

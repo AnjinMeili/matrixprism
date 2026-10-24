@@ -37,6 +37,23 @@ Frames are skipped, not queued, when the WebSocket is backed up, and before
 that when the receiver's **Most frames a second sent** says so (`SendLimiter`
 in `receivers.js`).
 
+### Go live (T58)
+
+`public/recording.js`'s recorder is also used, pointed at `/api/live`, to
+send the composed preview and the live input to YouTube. `lib/live.js` starts
+FFmpeg when Go live is pressed and writes each uploaded chunk straight to its
+standard input; FFmpeg enlarges the picture to the chosen size
+(nearest-neighbour) and sends H.264/AAC over RTMP. Nothing is written to disk.
+The stream key comes only from the server's `YOUTUBE_STREAM_KEY` (the page
+has no key field and is told only whether one is set), is checked against
+`[A-Za-z0-9._-]{4,100}`, and is removed from FFmpeg's output before it is kept
+or shown. The destination is fixed by the server (YouTube's, or
+`--live-ingest <rtmp address without the key>` for a test receiver), never
+chosen by the page. The endpoint has the same checks as recording: known host,
+same-origin POST, loopback peer. Record and Go live do not run together, and
+each locks the matrix size, receiver and audio input. See
+[recording-plan.md](recording-plan.md).
+
 ### Experimental recording (T47, preview-recording branch)
 
 `public/recording.js` captures the final preview immediately after rendering,
