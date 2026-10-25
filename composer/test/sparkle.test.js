@@ -205,3 +205,24 @@ test('placed along edges, sparkles land on the outline of a shape; on bright sha
   const light = where('light');
   assert.ok(light.length > 100 && light.every((d) => d < 41), `${light.length} sparkles, all inside the disc`);
 });
+
+test('across the panel by pitch, a hit lights the columns at its pitch and a low one lands left of a high one', () => {
+  assert.equal(needsFeatures(on({ placement: 'pitch' })), false, 'it needs no picture');
+  const columns = (place) => {
+    const field = new SparkleField();
+    for (let n = 0; n < 8; ++n) field.add({ highHits: 1, highStrength: 1, highPlace: place }, n * 0.001);
+    const u = field.uniforms(0.01, on({ placement: 'pitch', density: 1, shape: 'point', twinkle: 0 }), 0, 0);
+    const xs = [];
+    for (let y = 0; y < 64; ++y)
+      for (let x = 0; x < 256; ++x) if (sparkleLight(x, y, u, null, 256)[0] > 0) xs.push(x);
+    return xs;
+  };
+  const low = columns(0.1), high = columns(0.9);
+  assert.ok(low.length > 20 && high.length > 20, `${low.length} and ${high.length} sparkles`);
+  assert.ok(low.every((x) => Math.abs((x + 0.5) / 256 - 0.1) < 0.15), 'a low hit stays within 0.15 of the panel around 0.1');
+  assert.ok(high.every((x) => Math.abs((x + 0.5) / 256 - 0.9) < 0.15), 'a high hit near the right');
+  // Without a width, nothing is placed: the weight is 1 everywhere.
+  assert.equal(sparkleWeight(5, 5, 3, null, 0.5, 0), 1);
+  assert.equal(sparkleWeight(128, 5, 3, null, 0.5, 256) > 4, true);
+  assert.equal(sparkleWeight(5, 5, 3, null, 0.9, 256), 0);
+});

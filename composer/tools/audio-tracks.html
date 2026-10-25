@@ -96,6 +96,7 @@ function essentiaTrack(essentia, buffer) {
 }
 const FEATURES = ['centroid', 'flatness', 'rolloff', 'flux', 'zcr'];
 const EXISTING = ['level', 'bass', 'mid', 'treble'];
+const SENT = ['sCentroid', 'sFlatness', 'sRolloff', 'sZcr', 'lufs', 'sLoudness'];
 
 function correlation(a, b) {
   const n = a.length;
@@ -126,7 +127,7 @@ async function analyseTrack({ index, id }, decoder, essentia) {
     essentiaTrack(essentia, await essentia.decoder.decodeAudioData(bytes.slice(0))) : null;
   const buffer = await decoder.decodeAudioData(bytes);
   const series = { key: changes(), mKey: changes(), bpm: changes(), fluxBpm: changes() };
-  const columns = Object.fromEntries([...FEATURES, ...EXISTING].map((name) => [name, []]));
+  const columns = Object.fromEntries([...FEATURES, ...EXISTING, ...SENT].map((name) => [name, []]));
   const sums = { analyseMs: 0, featuresMs: 0, chromaMs: 0 };
   let frames = 0, onsets = 0, fluxOnsets = 0, end = 0, bassCapped = 0;
   // High-band hits (T30): how many, and the strength and place of each; air
@@ -173,6 +174,7 @@ async function analyseTrack({ index, id }, decoder, essentia) {
       place: quantile(highs.place, 0.5), air: quantile(highs.air, 0.5), airHigh: quantile(highs.air, 0.9),
       rateHigh: quantile(highs.rate, 0.9), silentShare: highs.rate.filter((r) => r === 0).length / highs.rate.length },
     essentia: essentiaResult,
+    sent: Object.fromEntries(SENT.map((name) => [name, [0.1, 0.5, 0.9].map((p) => quantile(columns[name], p))])),
     level: mean(columns.level), cost: Object.fromEntries(Object.entries(sums).map(([k, v]) => [k, v / frames])),
     series: Object.fromEntries(Object.entries(series).map(([k, v]) => [k, v.list])),
   };

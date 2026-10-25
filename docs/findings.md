@@ -239,3 +239,28 @@ the floor in any minute (median 0.6 to 0.8 of the panel); on the simulated
 signal the heights follow its spectrum. Music at 0 with Keep bouncing off
 gives the original. Not measured: real music, and the panel.
 
+
+## Audio features
+
+**Asked:** what scales make the spectral features and loudness sent to the
+patterns (centroid, flatness, rolloff, zero-crossing rate, momentary loudness)
+use their 0 to 1 range on real dance music?
+
+**Measured:** the composer's own smoothed features, offline in headless
+Chrome at 30 fps and gain 1.5, on the first 120 tracks of the Beatport EDM Key
+Dataset (`npm run compare-tracks`). Per-track medians:
+
+| Feature | Scale (0 to 1) | Tracks' medians span | Median of medians |
+| --- | --- | --- | --- |
+| Centroid | 100 Hz to 12.8 kHz, log | 0.30 to 0.81 | 0.66 |
+| Rolloff | 300 Hz to 20 kHz, log | 0.19 to 0.86 | 0.70 |
+| Flatness | full at 0.05 | 0.05 to 0.62 | 0.29 |
+| Zero-crossing rate | full at 0.25 | 0.03 to 0.58 | 0.20 |
+| Loudness | -40 to -4 LUFS | | about 0.8 (typical -10.7 LUFS) |
+
+**Done:** the first guesses bunched centroid and rolloff near 1 and used a
+tenth of flatness's range, so the scales were moved to these. The loudness
+mapping moves with the Gain setting.
+
+**Not covered:** other genres, a live input, Safari, and whether any pattern
+looks better for using them (none does yet).

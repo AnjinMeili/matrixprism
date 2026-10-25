@@ -5,6 +5,7 @@ import { MEDIA_PATTERN } from './media.js';
 import { PANEL_RANGE_PATTERN } from './test-card.js';
 import { BEAT_GRAPH_PATTERN } from './beat-graph.js';
 import { FIRE_PATTERN } from './fire.js';
+import { SPECTRUM_FLOCK_PATTERN } from './spectrum-flock.js';
 import { MARK_ESTES_PATTERNS } from './patterns/mark-estes/index.js';
 import { AURORADROP_PATTERNS } from './patterns/auroradrop/index.js';
 
@@ -19,10 +20,17 @@ uniform float u_bass;
 uniform float u_mid;
 uniform float u_treble;
 uniform float u_level;
+uniform float u_centroid;
+uniform float u_flatness;
+uniform float u_rolloff;
+uniform float u_zcr;
+uniform float u_loudness;
 uniform float u_beat;
 uniform float u_hue;
 uniform sampler2D u_spectrum;
 uniform sampler2D u_wave;
+uniform sampler2D u_raw;
+uniform float u_raw_nyquist;
 uniform sampler2D u_history;
 uniform float u_history_head;
 uniform float u_history_rows;
@@ -33,6 +41,15 @@ uniform float u_key_confidence;
 #define TAU 6.2831853
 
 float spec(float x) { return texture2D(u_spectrum, vec2(clamp(x, 0.0, 1.0) * 0.996 + 0.002, 0.5)).r; }
+// The spectrum by frequency (T62): 0 to 1 at hz, and averaged over octaves
+// around it. Raw (unsmoothed) readings of the Spectrum analyser at its FFT size
+// while it runs, otherwise of the 2048-point one; u_raw_nyquist is the top.
+float rawSpec(float hz) { return texture2D(u_raw, vec2(clamp(hz / u_raw_nyquist, 0.0, 1.0) * 0.9995 + 0.00025, 0.5)).r; }
+float rawBand(float hz, float octaves) {
+  float sum = 0.0;
+  for (int i = 0; i < 5; ++i) sum += rawSpec(hz * exp2((float(i) / 4.0 - 0.5) * octaves));
+  return sum / 5.0;
+}
 float wave(float x) { return texture2D(u_wave, vec2(clamp(x, 0.0, 1.0) * 0.996 + 0.002, 0.5)).r * 2.0 - 1.0; }
 float history(float x, float age) {
   float row = mod(u_history_head - 1.0 - floor(clamp(age, 0.0, 1.0) * (u_history_rows - 1.0)) + u_history_rows, u_history_rows);
@@ -71,6 +88,7 @@ export const PATTERNS = [
   BEAT_GRAPH_PATTERN,
   MEDIA_PATTERN,
   FIRE_PATTERN,
+  SPECTRUM_FLOCK_PATTERN,
   {
     id: 'camelot-wheel',
     // The wheel's colours identify keys, so key-driven hue must not shift them.

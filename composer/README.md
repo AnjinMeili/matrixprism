@@ -1152,8 +1152,22 @@ switching or crossfading into it shows recent audio immediately.
 
 To add a pattern, add an entry to `public/patterns.js` with a GLSL function
 `vec3 render()`. The shared prelude provides `u_time`, `u_bass`, `u_mid`,
-`u_treble`, `u_level`, `u_beat`, `spec(x)`, `wave(x)`, `pal(t)`, `noise`,
-`fbm`, `centered()`, and `uv01()`. `history(x, age)` samples the spectrum history
+`u_treble`, `u_level`, `u_beat`, `u_centroid` (brightness of the sound),
+`u_flatness` (noise against tone), `u_rolloff` (where the top of the sound
+ends), `u_zcr` (roughness) and `u_loudness` (K-weighted momentary
+loudness), each 0 to 1 and smoothed over a quarter
+second, `spec(x)`, `wave(x)`, `pal(t)`, `noise`,
+`fbm`, `centered()`, and `uv01()`. `rawSpec(hz)` and `rawBand(hz, octaves)`
+read the spectrum by frequency: 0 to 1 at `hz`, from the Spectrum analyser's
+unsmoothed readings at its FFT size while it runs and from a 2048-point
+analyser otherwise.
+A pattern written in JavaScript (`createInstance`) gets the same spectrum as
+`state.spectrumInput` (`{ data, fftSize, sampleRate }`, decibels per bin) and
+reads it by frequency with `amplitudeAt` and `bandAt` in `spectrum-bands.js`;
+`RelativeBands` there puts each frequency against its own recent range.
+Spectrum Flock is the worked example: every bird listens to one frequency.
+
+`history(x, age)` samples the spectrum history
 at normalized frequency `x` and age `age` (0 = newest, 1 = oldest).
 
 ## Notes

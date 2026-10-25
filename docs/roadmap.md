@@ -90,6 +90,37 @@ the measurements behind it are in [findings.md](findings.md).
    per-frame timestamp scan (needs a timestamp index); tests for the WebGL
    renderer and `app.js`.
 
+8. **Patterns that use the spectral features and loudness**: `u_centroid`,
+   `u_flatness`, `u_rolloff`, `u_zcr` and `u_loudness` reach every shader
+   pattern (scales set from 120 dance tracks, see "Audio features" in the
+   [findings](findings.md)) but no pattern reads them yet. Brightness from
+   loudness or centroid and texture from flatness are the usual mappings.
+9. **Spectrum by frequency**: every pattern can read the spectrum by
+   frequency (`rawSpec` in shaders, `state.spectrumInput` in JavaScript), and
+   Spectrum Flock shows it in four modes (flock, springs, gather, cymatics);
+   sparkles can land across the panel by pitch, though the detector finds
+   hits in the high band only. More patterns that give frequencies to their
+   parts are open.
+10. **Downbeats**: bars are counted from where the tracker started, not from
+   the music, so a change that waits for a bar waits for the composer's bar.
+   No beat source here finds the downbeat. A pad on a MIDI device can now mark
+   it (Monitor view, Chrome and Edge only; the D key and button did already).
+   An outside clock from DJ software would keep it in step without presses
+   (some, such as djay Pro by forum reports, sync by Ableton Link only, which
+   needs a native helper); the
+   research route is a measured trial of the small Beat This! ONNX model.
+
+Decisions on audio analysis (2026-10-24):
+
+- **Essentia stays opt-in.** It earns its place on tempo, but it is 2.8 MB
+  of AGPL-3.0 code with no release since 2021 and a 10-second start, and the
+  measured in-house flux source is within two points of it live. The public
+  default stays the in-house path.
+- **Not worth doing now:** chroma and MFCC (the key detector works on its
+  own profile match, and MFCCs feed classifiers rather than visuals), and any
+  Python-side analysis service, which would bring back an install step the
+  packaging work is removing.
+
 ## Plans for later
 
 - **A pattern library and editor**, and **a cleaner UI** first:

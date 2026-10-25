@@ -187,6 +187,7 @@ test('live input connects an independent configurable analyser and clears it on 
     constructor() { this.fftSize = 2048; }
     get frequencyBinCount() { return this.fftSize / 2; }
     getFloatFrequencyData(data) { data.fill(-80); data[Math.round(1000 * this.fftSize / 48000)] = -20; }
+    getFloatTimeDomainData(data) { data.fill(0); }
     getByteFrequencyData(data) { data.fill(64); }
     getByteTimeDomainData(data) { data.fill(128); }
   }

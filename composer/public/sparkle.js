@@ -29,7 +29,13 @@ export const SPARKLE_PLACEMENTS = [
   { id: 'anywhere', label: 'Anywhere' },
   { id: 'edges', label: 'Along edges and curves' },
   { id: 'light', label: 'On bright shapes' },
+  { id: 'pitch', label: 'Across the panel by pitch' },
 ];
+// Across the panel by pitch: a hit lands in the columns at its pitch (where in
+// the high band it rose, 0 at the bottom of the band and 1 at the top, spread
+// from the panel's left to its right), falling away over PITCH_SPREAD of the
+// panel's width either side. It needs no picture.
+const PITCH_SPREAD = 0.15;
 // Faint features count for nothing: an edge's weight rises from a change in
 // brightness of EDGE_RAMP[0] across it to full at EDGE_RAMP[1], and a bright
 // shape's from LIGHT_RAMP[0] to LIGHT_RAMP[1]. With a plain proportion, a
@@ -38,7 +44,7 @@ export const SPARKLE_PLACEMENTS = [
 // chance, to keep about as many sparkles.
 const EDGE_RAMP = [0.1, 0.4];
 const LIGHT_RAMP = [0.3, 0.8];
-const PLACEMENT_GAIN = [1, 3, 2];
+const PLACEMENT_GAIN = [1, 3, 2, 5];
 const ramp = (value, [low, high]) => Math.min(1, Math.max(0, (value - low) / (high - low)));
 
 export const SPARKLE_DEFAULTS = {
@@ -179,7 +185,7 @@ function sparkleColour(mode, place, tint) {
 const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 // Whether a placement needs the mixed picture drawn first.
-export const needsFeatures = (settings) => !!settings?.enabled && (settings.placement ?? 'anywhere') !== 'anywhere';
+export const needsFeatures = (settings) => !!settings?.enabled && ['edges', 'light'].includes(settings.placement);
 
 // The picture's brightness at (x, y), 0 to 1, from `frame` ({ width, height,
 // pixels }: RGBA bytes, rows from the bottom), clamped at its edges. In whole
@@ -192,9 +198,14 @@ function frameLuma(frame, x, y) {
 
 // How likely pixel (x, y) is to sparkle, relative to Anywhere, for placement
 // `mode` (an index into SPARKLE_PLACEMENTS): along edges, by how much the
-// brightness changes across it; on bright shapes, by its brightness.
-export function sparkleWeight(x, y, mode, frame) {
-  if (!mode || !frame) return 1;
+// brightness changes across it; on bright shapes, by its brightness; by pitch,
+// by how near its column is to the hit's `place` on a panel `width` wide
+// (without a place, as for the air's twinkle, or a width, it is 1).
+export function sparkleWeight(x, y, mode, frame, place = -1, width = 0) {
+  if (!mode) return 1;
+  if (mode === 3)
+    return place < 0 || !width ? 1 : Math.max(0, 1 - Math.abs((x + 0.5) / width - place) / PITCH_SPREAD) * PLACEMENT_GAIN[3];
+  if (!frame) return 1;
   if (mode === 1) {
     const change = Math.abs(frameLuma(frame, x + 1, y) - frameLuma(frame, x - 1, y)) +
       Math.abs(frameLuma(frame, x, y + 1) - frameLuma(frame, x, y - 1));
@@ -206,7 +217,7 @@ export function sparkleWeight(x, y, mode, frame) {
 // The light added at pixel (x, y), counted from the bottom left as
 // gl_FragCoord is, as [r, g, b]; `u` is SparkleField.uniforms(), and `frame`
 // the mixed picture, for a placement that needs it.
-export function sparkleLight(x, y, u, frame = null) {
+export function sparkleLight(x, y, u, frame = null, width = 0) {
   const [amount, share, life, star] = u.sparkle;
   const light = [0, 0, 0];
   if (amount <= 0) return light;
@@ -219,12 +230,12 @@ export function sparkleLight(x, y, u, frame = null) {
     const q = share * strength;
     const mode = u.air[3];
     const centre = sparkleHash(x, y, seed);
-    const qc = q * sparkleWeight(x, y, mode, frame);
+    const qc = q * sparkleWeight(x, y, mode, frame, place, width);
     let value = centre < qc ? twinkle(age, centre / q) : 0;
     if (star)
       for (const [dx, dy] of NEIGHBOURS) {
         const h = sparkleHash(x + dx, y + dy, seed);
-        if (h < q * sparkleWeight(x + dx, y + dy, mode, frame)) value = Math.max(value, 0.35 * twinkle(age, h / q));
+        if (h < q * sparkleWeight(x + dx, y + dy, mode, frame, place, width)) value = Math.max(value, 0.35 * twinkle(age, h / q));
       }
     if (value > 0) add(sparkleColour(u.air[2], place, u.tint), envelope * value);
   }
@@ -261,8 +272,10 @@ float sparkleLuma(vec2 p) {
   vec3 bytes = floor(texture2D(u_features, (c + 0.5) / u_res).rgb * 255.0 + 0.5);
   return dot(bytes, vec3(299.0, 587.0, 114.0)) / 255000.0;
 }
-float sparkleWeight(vec2 p) {
+float sparkleWeight(vec2 p, float place) {
   if (u_sparkle_air.w < 0.5) return 1.0;
+  if (u_sparkle_air.w > 2.5)
+    return place < 0.0 ? 1.0 : max(0.0, 1.0 - abs((p.x + 0.5) / u_res.x - place) / ${PITCH_SPREAD.toFixed(2)}) * ${PLACEMENT_GAIN[3].toFixed(1)};
   if (u_sparkle_air.w < 1.5) {
     float change = abs(sparkleLuma(p + vec2(1.0, 0.0)) - sparkleLuma(p - vec2(1.0, 0.0))) +
       abs(sparkleLuma(p + vec2(0.0, 1.0)) - sparkleLuma(p - vec2(0.0, 1.0)));
@@ -286,23 +299,23 @@ vec3 sparkles(vec2 pixel) {
     if (envelope < 0.004) continue;
     float q = u_sparkle.y * hit.y;
     float centre = sparkleHash(pixel.x, pixel.y, hit.w);
-    float value = centre < q * sparkleWeight(pixel) ? sparkleTwinkle(hit.x, centre / q) : 0.0;
+    float value = centre < q * sparkleWeight(pixel, hit.z) ? sparkleTwinkle(hit.x, centre / q) : 0.0;
     if (u_sparkle.w > 0.5) {
       float h = sparkleHash(pixel.x + 1.0, pixel.y, hit.w);
-      if (h < q * sparkleWeight(pixel + vec2(1.0, 0.0))) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
+      if (h < q * sparkleWeight(pixel + vec2(1.0, 0.0), hit.z)) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
       h = sparkleHash(pixel.x - 1.0, pixel.y, hit.w);
-      if (h < q * sparkleWeight(pixel - vec2(1.0, 0.0))) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
+      if (h < q * sparkleWeight(pixel - vec2(1.0, 0.0), hit.z)) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
       h = sparkleHash(pixel.x, pixel.y + 1.0, hit.w);
-      if (h < q * sparkleWeight(pixel + vec2(0.0, 1.0))) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
+      if (h < q * sparkleWeight(pixel + vec2(0.0, 1.0), hit.z)) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
       h = sparkleHash(pixel.x, pixel.y - 1.0, hit.w);
-      if (h < q * sparkleWeight(pixel - vec2(0.0, 1.0))) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
+      if (h < q * sparkleWeight(pixel - vec2(0.0, 1.0), hit.z)) value = max(value, 0.35 * sparkleTwinkle(hit.x, h / q));
     }
     if (value > 0.0) light += sparkleColour(hit.z) * envelope * value;
   }
   if (u_sparkle_air.x > 0.0) {
     float position = u_sparkle_air.y / ${AIR_PERIOD.toFixed(1)} + sparkleHash(pixel.x, pixel.y, 7.0);
     float h = sparkleHash(pixel.x, pixel.y, sparkleMod(floor(position), 289.0));
-    if (h < ${AIR_SHARE.toFixed(3)} * sparkleWeight(pixel))
+    if (h < ${AIR_SHARE.toFixed(3)} * sparkleWeight(pixel, -1.0))
       light += sparkleColour(h / ${AIR_SHARE.toFixed(3)}) * 0.5 * u_sparkle_air.x * sin(3.14159265 * fract(position));
   }
   return light * u_sparkle.x;

@@ -11,6 +11,8 @@
     "test": "node --test test/",
     "check-shaders": "node tools/check-shaders.mjs",
     "check-test-card": "node tools/check-test-card.mjs",
+    "check-midi": "node tools/check-midi.mjs",
+    "check-raw-spectrum": "node tools/check-raw-spectrum.mjs",
     "check-sparkles": "node tools/check-sparkles.mjs",
     "measure-colours": "node tools/measure-colours.mjs",
     "compare-audio": "node tools/audio-compare.mjs",

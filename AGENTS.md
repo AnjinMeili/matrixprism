@@ -70,6 +70,8 @@ npm run check-essentia-live  # composer: after any change to the Essentia beat s
 npm run check-param-controls # composer: after any change to params.js or param-controls.js
 npm run check-hotsave        # composer: after any change to playlists, look.js or Hotsave
 npm run check-receivers      # composer: after any change to receivers.js or the sending loop
+npm run check-midi           # composer: after any change to midi-input.js or the Monitor's MIDI controls
+npm run check-raw-spectrum   # composer: after any change to spectrum-bands.js, the raw texture or rawSpec
 npm run check-quad-render    # composer: after any change to renderer.js's quad paths or the compositor
 npm run check-layout         # composer: after any change to layout.js, layout-view.js, help.js or their styles
 npm run check-quad-view      # composer: after any change to the quad mixer's view or its wiring in app.js
@@ -87,6 +89,15 @@ make -C receiver test         # receiver protocol, recording, scene tool
   needs Chrome on the machine and does not look at the picture.
 - `npm run check-test-card` draws the Panel Range card's shader in headless
   Chrome and compares every pixel with its JavaScript reference.
+- `npm run check-midi` connects a fake MIDI device to the real page in
+  headless Chrome, learns a pad for Tap and one for Downbeat, taps by the
+  messages' own times (120 BPM), presses the Downbeat and Tap buttons and the
+  D key, and forgets a pad. Real devices, the downbeat's
+  effect on the bars and Safari (no Web MIDI) are not covered.
+- `npm run check-raw-spectrum` draws a shader that paints each column from
+  `rawBand` through the real renderer, with known sound at several FFT sizes
+  and sample rates, and checks the bright and dark columns. It does not look
+  at the picture; `tools/pattern-frames.mjs` does.
 - `npm run check-sparkles` does the same for the sparkles laid over every
   pattern (`sparkle.js`, T30), for several sets of hits and settings at three
   panel sizes. A level off by one is allowed for float rounding.

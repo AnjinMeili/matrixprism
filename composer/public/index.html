@@ -198,7 +198,28 @@
             <button type="button" id="monitor-tap" title="Tap in time with the music: two or more taps set the manual tempo">Tap (T)</button>
             <button type="button" id="monitor-downbeat" title="Mark this moment as the first beat of the bar; the tempo stays the tracker's">Downbeat (D)</button>
           </div>
+          <div id="beat-dots" aria-label="Beat in the bar"><span></span><span></span><span></span><span></span></div>
+          <output id="press-note" class="hint"></output>
           <output id="monitor-fold-bpm" class="hint">Following the clock</output>
+          <div id="midi-controls">
+            <div class="row">
+              <strong>MIDI</strong>
+              <button type="button" id="midi-connect" title="Ask the browser for MIDI devices (Chrome and Edge)">Connect MIDI</button>
+              <output id="midi-status" class="hint"></output>
+            </div>
+            <div class="row" data-midi-row="downbeat">
+              <span>Downbeat pad</span>
+              <button type="button" data-midi-learn="downbeat" title="Then press the pad that marks the first beat of a bar">Learn</button>
+              <output id="midi-binding-downbeat" class="hint"></output>
+              <button type="button" data-midi-forget="downbeat" title="Unbind this pad">Forget</button>
+            </div>
+            <div class="row" data-midi-row="tap">
+              <span>Tap pad</span>
+              <button type="button" data-midi-learn="tap" title="Then press the pad that taps the tempo">Learn</button>
+              <output id="midi-binding-tap" class="hint"></output>
+              <button type="button" data-midi-forget="tap" title="Unbind this pad">Forget</button>
+            </div>
+          </div>
           <div class="row" id="monitor-nudge">
             <button type="button" data-nudge="-1" title="Fold at 1 BPM slower">−1</button>
             <button type="button" data-nudge="-0.1" title="Fold at 0.1 BPM slower">−0.1</button>

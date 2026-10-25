@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MIDI check</title>
+<!-- Loaded by tools/check-midi.mjs in headless Chrome, on real time because the
+     page's frame clock is a worker. Opens the composer in a
+     frame, gives it a fake MIDI device, connects, learns a pad for Tap and one
+     for Downbeat, and presses them with message times chosen here, and reports
+     what the page shows and saves. -->
+<iframe id="app" src="/index.html" width="1200" height="900"></iframe>
+<pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById('out');
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+try {
+  const frame = document.getElementById('app');
+  await new Promise((resolve) => frame.addEventListener('load', resolve, { once: true }));
+  const win = frame.contentWindow, doc = frame.contentDocument, $ = (id) => doc.getElementById(id);
+  for (let i = 0; i < 100 && !$('midi-status').textContent; ++i) await wait(50);
+  const saved = () => JSON.parse(win.localStorage.getItem('matrix-companion-settings'));
+  const result = { before: $('midi-status').textContent };
+  const pad = { name: 'Test Pad', onmidimessage: null };
+  const access = { inputs: new Map([['pad', pad]]), onstatechange: null };
+  win.navigator.requestMIDIAccess = async () => access;
+  $('midi-connect').click();
+  await wait(100);
+  result.connected = { status: $('midi-status').textContent, connectHidden: $('midi-connect').hidden };
+  const send = (data, at) => pad.onmidimessage({ data, timeStamp: at });
+  const learn = async (action, data) => {
+    doc.querySelector(`[data-midi-learn="${action}"]`).click();
+    const label = doc.querySelector(`[data-midi-learn="${action}"]`).textContent;
+    send(data, 0);
+    await wait(30);
+    return { label, binding: $(`midi-binding-${action}`).textContent };
+  };
+  result.learnedTap = await learn('tap', [0x99, 38, 100]);
+  result.learnedDownbeat = await learn('downbeat', [0x99, 36, 100]);
+  result.stored = saved().midi;
+  // Two taps half a second apart, by the messages' own times, are 120 BPM,
+  // whatever the real time between these calls. Tap by beat first.
+  const tempo = saved().tempo;
+  result.tapUnit = tempo.tap;
+  const now = win.performance.now();
+  send([0x99, 38, 100], now);
+  send([0x99, 38, 100], now + 500);
+  await wait(50);
+  result.tempo = { mode: saved().tempo.mode, bpm: saved().tempo.manualBpm };
+  // The Monitor says what a Downbeat press found, and lights one of four beats.
+  doc.querySelector('[data-view-button="monitor"]').click();
+  // The frame loop starts once the page has set itself up; give it time.
+  for (let i = 0; i < 100 && !$('monitor-readout').textContent; ++i) await wait(50);
+  send([0x99, 36, 100], win.performance.now());
+  await wait(600);
+  result.note = $('press-note').textContent;
+  result.dots = { total: doc.querySelectorAll('#beat-dots span').length, lit: doc.querySelectorAll('#beat-dots span.on').length };
+  result.error = $('error').textContent;
+  // The button and the D key still mark the downbeat, as before the pad.
+  const note = async (act) => {
+    doc.querySelector('[data-view-button="monitor"]').click();
+    $('press-note').textContent = '';
+    act();
+    await wait(600);
+    return $('press-note').textContent;
+  };
+  result.button = await note(() => $('monitor-downbeat').dispatchEvent(new win.PointerEvent('pointerdown', { button: 0, bubbles: true })));
+  result.key = await note(() => doc.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'd', bubbles: true })));
+  result.tapButton = await note(() => $('monitor-tap').dispatchEvent(new win.PointerEvent('pointerdown', { button: 0, bubbles: true })));
+  // Forget removes the binding and the pad no longer acts.
+  doc.querySelector('[data-midi-forget="tap"]').click();
+  await wait(30);
+  result.forgotten = { shown: $('midi-binding-tap').textContent, stored: saved().midi.bindings.tap ?? null };
+  await fetch('/result', { method: 'POST', body: JSON.stringify(result, null, 1) });
+} catch (error) {
+  await fetch('/result', { method: 'POST', body: `FAIL ${error.stack}` });
+}
+</script>

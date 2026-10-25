@@ -4,7 +4,9 @@ import { KeyDetector } from './key-detector.js';
 import { TRACE_RATE as FLUX_RATE } from './band-flux.js';
 import { TempoTracker } from './tempo.js';
 import { FFT_SIZES } from './spectrum-plot.js';
-import { FluxOnsets, HitDetector, bandShare, flux, magnitudes, riseCentre } from './spectral-features.js';
+import { MomentaryLoudness } from './loudness.js';
+import { FluxOnsets, HitDetector, bandShare, centroid, flatness, flux, magnitudes, riseCentre, rolloff,
+  zeroCrossingRate } from './spectral-features.js';
 
 // When, within the samples that are new since the last frame, an onset most
 // likely began: the start of the 64-sample block whose energy rose most over
@@ -93,7 +95,28 @@ const AIR_SECONDS = 0.3;
 const silentFeatures = () => ({
   bass: 0, mid: 0, treble: 0, level: 0, beat: 0,
   highHit: 0, highHits: 0, highStrength: 0, highRate: 0, highPlace: 0.5, air: 0,
+  centroid: 0, flatness: 0, rolloff: 0, zcr: 0, loudness: 0, lufs: LUFS_SILENCE,
 });
+
+// The spectral features that go to the patterns (T60), each smoothed over
+// SPECTRAL_SECONDS and scaled to 0..1. Centroid and rolloff are Hz on a log
+// scale between the two ends given; flatness and zero-crossing rate are
+// shares, scaled by the figure at which they reach 1. Below SPECTRAL_FLOOR
+// (mean magnitude per bin) the input counts as silence and they fall to 0,
+// since a noise floor would otherwise read as flat, bright noise.
+// Momentary loudness (T61, loudness.js): `lufs` is the last 400 ms in LUFS,
+// at least LUFS_SILENCE, and `loudness` that from LOUDNESS_LUFS[0] (0) up to
+// LOUDNESS_LUFS[1] (1), for what drives brightness.
+const LUFS_SILENCE = -100;
+const LOUDNESS_LUFS = [-40, -4];
+const SPECTRAL_SECONDS = 0.25;
+const SPECTRAL_FLOOR = 1e-5;
+const CENTROID_HZ = [100, 12800];
+const ROLLOFF_HZ = [300, 20000];
+const FLATNESS_FULL = 0.05;
+const ZCR_FULL = 0.25;
+const logScale = (hz, [low, high]) =>
+  Math.min(1, Math.max(0, Math.log2(Math.max(hz, 1) / low) / Math.log2(high / low)));
 
 // The analyser only listens, so it should not touch the audio output. By
 // default a context opens the system output device and asks it for small,
@@ -260,6 +283,7 @@ export class AudioAnalyzer {
     this.fluxAnalyser.smoothingTimeConstant = 0;
     source.connect(this.fluxAnalyser);
     this.fluxDecibels = new Float32Array(this.fluxAnalyser.frequencyBinCount);
+    this.floatTime = new Float32Array(this.fluxAnalyser.fftSize);
     this.keyFrequencyData = new Float32Array(this.keyAnalyser.frequencyBinCount);
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
     this.timeData = new Uint8Array(this.analyser.fftSize);
@@ -270,6 +294,7 @@ export class AudioAnalyzer {
       timeData: this.timeData,
       channels: this.channelAnalysers ? this.channelData : null,
       fluxData: this.fluxDecibels,
+      floatTimeData: this.floatTime,
       keyFftSize: this.keyAnalyser.fftSize,
       readKeyData: () => {
         this.keyAnalyser.getFloatFrequencyData(this.keyFrequencyData);
@@ -483,6 +508,7 @@ export class AudioAnalyzer {
     this.spectrum.fill(0);
     this.wave.fill(128);
     this.features = silentFeatures();
+    this.loudnessMeter = null;
     this.highDetector.reset();
     this.highTimes = [];
     this.highHistory = [];
@@ -525,7 +551,7 @@ export class AudioAnalyzer {
         this.updateSimulated(dt, gain);
       this.updateBeat(dt, seconds);
     }
-    if (this.plotEnabled) this.updatePlot();
+    if (this.plotEnabled || this.mode === 'simulated') this.updatePlot();
     return this.features;
   }
 
@@ -536,6 +562,7 @@ export class AudioAnalyzer {
     this.channelAnalysers?.forEach((analyser, channel) =>
       analyser.getByteFrequencyData(this.channelData[channel]));
     this.fluxAnalyser.getFloatFrequencyData(this.fluxDecibels);
+    this.fluxAnalyser.getFloatTimeDomainData(this.floatTime);
     return this.deviceFrame;
   }
 
@@ -547,6 +574,8 @@ export class AudioAnalyzer {
   //   frequencyData  byte spectrum of a 2048-point analyser (smoothing 0.55,
   //                  -90 to -15 dB), as getByteFrequencyData gives it;
   //   timeData       that analyser's byte waveform;
+  //   floatTimeData  optional: the unsmoothed analyser's float waveform, for
+  //                  loudness (the newest dt seconds of it are used);
   //   channels       left and right byte spectra like frequencyData, or null
   //                  for a source with no channel split;
   //   fluxData       the decibel spectrum of an unsmoothed 2048-point analyser,
@@ -575,6 +604,7 @@ export class AudioAnalyzer {
     this.features.bass = Math.min(1, this.bandEnergy(frequencyData, sampleRate, BANDS.bass) * gain);
     this.features.mid = Math.min(1, this.bandEnergy(frequencyData, sampleRate, BANDS.mid) * gain);
     this.features.treble = Math.min(1, this.bandEnergy(frequencyData, sampleRate, BANDS.treble) * gain);
+    this.updateLoudness(frame, dt, gain);
     this.keyElapsed += dt;
     if (frame.readKeyData && this.keyElapsed >= 0.1) {
       this.key = this.keyDetector.update(frame.readKeyData(), sampleRate,
@@ -584,6 +614,8 @@ export class AudioAnalyzer {
     this.flux = null;
     this.lowFlux = null;
     if (frame.fluxData) {
+      if (this.fluxFrame?.data !== frame.fluxData || this.fluxFrame.sampleRate !== sampleRate)
+        this.fluxFrame = { data: frame.fluxData, fftSize: frame.fluxData.length * 2, sampleRate };
       if (this.fluxSpectrum?.length !== frame.fluxData.length) {
         this.fluxSpectrum = new Float32Array(frame.fluxData.length);
         this.fluxPrevious = new Float32Array(frame.fluxData.length);
@@ -591,6 +623,7 @@ export class AudioAnalyzer {
       [this.fluxSpectrum, this.fluxPrevious] = [this.fluxPrevious, this.fluxSpectrum];
       magnitudes(frame.fluxData, this.fluxSpectrum);
       this.flux = flux(this.fluxSpectrum, this.fluxPrevious);
+      this.updateSpectral(dt, sampleRate, timeData);
       const low = Math.max(1, Math.round(165 / (sampleRate / 2 / frame.fluxData.length)));
       this.lowFlux = flux(this.fluxSpectrum.subarray(0, low), this.fluxPrevious.subarray(0, low));
       const binHz = sampleRate / 2 / frame.fluxData.length;
@@ -612,9 +645,53 @@ export class AudioAnalyzer {
         bandShare(this.fluxSpectrum, start, end),
         high.relative >= HIGH_BRIGHTNESS * presence.relative && high.relative >= HIGH_RISE);
       this.rememberSpectrum(seconds, this.fluxSpectrum);
-    } else this.updateHighs(dt, seconds, null);
+    } else {
+      this.updateSpectral(dt, sampleRate, timeData, false);
+      this.updateHighs(dt, seconds, null);
+    }
     this.updateBeat(dt, seconds, timeData, sampleRate);
     return this.features;
+  }
+
+  // Momentary loudness from the newest samples of the frame's float waveform
+  // (`floatTimeData`, the last 2048 samples of the unsmoothed analyser): the
+  // ones since the last frame, `dt` seconds' worth. Without it, or without
+  // time passing, the reading stands.
+  updateLoudness(frame, dt, gain) {
+    const wave = frame.floatTimeData;
+    if (!wave) return;
+    if (this.loudnessMeter?.sampleRate !== frame.sampleRate)
+      this.loudnessMeter = new MomentaryLoudness(frame.sampleRate);
+    const count = Math.min(wave.length, Math.round(dt * frame.sampleRate));
+    if (count < 1) return;
+    this.loudnessMeter.push(wave.subarray(wave.length - count), gain);
+    const lufs = Math.max(LUFS_SILENCE, this.loudnessMeter.lufs);
+    this.features.lufs = lufs;
+    this.features.loudness = Math.min(1, Math.max(0,
+      (lufs - LOUDNESS_LUFS[0]) / (LOUDNESS_LUFS[1] - LOUDNESS_LUFS[0])));
+  }
+
+  // Moves the spectral features towards this frame's readings, or towards 0
+  // when `live` is false (no unsmoothed spectrum) or the spectrum is silent.
+  updateSpectral(dt, sampleRate, timeData, live = true) {
+    const spectrum = this.fluxSpectrum;
+    let target = { centroid: 0, flatness: 0, rolloff: 0, zcr: 0 };
+    if (live && spectrum) {
+      let sum = 0;
+      for (const value of spectrum) sum += value;
+      if (sum / spectrum.length > SPECTRAL_FLOOR) {
+        const samples = Float32Array.from(timeData, (byte) => byte - 128);
+        target = {
+          centroid: logScale(centroid(spectrum, sampleRate), CENTROID_HZ),
+          flatness: Math.min(1, flatness(spectrum) / FLATNESS_FULL),
+          rolloff: logScale(rolloff(spectrum, sampleRate), ROLLOFF_HZ),
+          zcr: Math.min(1, zeroCrossingRate(samples) / ZCR_FULL),
+        };
+      }
+    }
+    const k = Math.min(1, dt / SPECTRAL_SECONDS);
+    for (const name of Object.keys(target))
+      this.features[name] += (target[name] - this.features[name]) * k;
   }
 
   configurePlot(fftSize, enabled) {
@@ -624,6 +701,15 @@ export class AudioAnalyzer {
     if (this.plotAnalyser) this.plotAnalyser.fftSize = fftSize;
     this.plotFftSize = fftSize;
     this.plotData = new Float32Array(fftSize / 2).fill(-Infinity);
+  }
+
+  // The spectrum for patterns (T62): one decibel reading per bin, whatever
+  // the display is doing. The Spectrum analyser's own data while it runs (and
+  // always for the simulated signal); otherwise the unsmoothed 2048-point
+  // analyser the beat and flux use. { data, fftSize, sampleRate } or null.
+  get spectrumInput() {
+    if (this.plotEnabled || !this.fluxFrame) return this.plotInput;
+    return this.fluxFrame;
   }
 
   get plotInput() {

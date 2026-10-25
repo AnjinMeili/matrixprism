@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Raw spectrum check</title>
+<!-- Loaded by tools/check-raw-spectrum.mjs in headless Chrome. Draws a shader
+     pattern that paints each column with rawBand() at its frequency (log,
+     40 Hz to 16 kHz) through the real Renderer, with known patches of sound
+     in the spectrum at several FFT sizes and sample rates, and checks the
+     columns at the patches are bright and those two octaves away are dark. -->
+<canvas id="canvas"></canvas>
+<pre id="out">running</pre>
+<script type="module">
+const lines = [];
+try {
+  const { Renderer } = await import('./renderer.js');
+  const { SHAPE_DEFAULTS } = await import('./shape.js');
+  const { SPECTRUM_DEFAULTS } = await import('./spectrum-plot.js');
+  const W = 256, H = 4, LOW = 40, HIGH = 16000;
+  const pattern = {
+    id: 'raw-check', name: 'Raw check', audio: 'check', params: [],
+    glsl: `vec3 render() {
+      float hz = ${LOW}.0 * pow(${HIGH / LOW}.0, uv01().x);
+      return vec3(rawBand(hz, 0.25));
+    }`,
+  };
+  const renderer = new Renderer(document.getElementById('canvas'));
+  renderer.setSize(W, H);
+  const columnHz = (x) => LOW * (HIGH / LOW) ** ((x + 0.5) / W);
+  const makeInput = (fftSize, sampleRate, tones) => {
+    const data = new Float32Array(fftSize / 2).fill(-100);
+    for (const hz of tones) {
+      const from = Math.round(hz * 2 ** (-1 / 6) * fftSize / sampleRate), to = Math.round(hz * 2 ** (1 / 6) * fftSize / sampleRate);
+      for (let i = from; i <= to; ++i) data[i] = -15;
+    }
+    return { data, fftSize, sampleRate };
+  };
+  const draw = (input) => renderer.render({
+    pattern, previousPattern: null, mix: 1, layer: null, shape: SHAPE_DEFAULTS, beatPosition: 0, changeClock: 0,
+    time: 0, auroraTime: 0, previousTime: 0, audio: { bass: 0, mid: 0, treble: 0, level: 0, beat: 0 }, audioTime: 0,
+    spectrum: new Uint8Array(128), spectrumLeft: new Uint8Array(128), spectrumRight: new Uint8Array(128),
+    wave: new Uint8Array(128), hue: 0, manualHue: 0, musicalKey: null, brightness: 1, gamma: 1, flock: { count: null },
+    auroraDotSize: null, mediaFit: 'cover', silenceMode: 'quiet', paletteId: 'original', spectrumOptions: SPECTRUM_DEFAULTS,
+    rawSpectrum: null, spectrumInput: input, patternParams: {}, overlays: { enabled: false, elements: [] }, wallTime: 0,
+  });
+  const tones = [400, 2000, 8000];
+  for (const [fftSize, sampleRate] of [[2048, 48000], [8192, 48000], [32768, 44100], [1024, 48000]]) {
+    const rgb = draw(makeInput(fftSize, sampleRate, tones));
+    // The picture is top row first; take the first row's red.
+    let worst = '';
+    let lit = 0, dark = 0, litTotal = 0, darkTotal = 0;
+    for (let x = 0; x < W; ++x) {
+      const hz = columnHz(x), value = rgb[x * 3] / 255;
+      const distance = Math.min(...tones.map((t) => Math.abs(Math.log2(hz / t))));
+      if (distance < 0.05) { ++litTotal; if (value > 0.7) ++lit; else worst ||= ` bright column at ${Math.round(hz)} Hz read ${value.toFixed(2)}`; }
+      if (distance > 1) { ++darkTotal; if (value < 0.05) ++dark; else worst ||= ` dark column at ${Math.round(hz)} Hz read ${value.toFixed(2)}`; }
+    }
+    const ok = lit === litTotal && dark === darkTotal && litTotal > 3;
+    lines.push(`${ok ? 'ok  ' : 'FAIL'} fft ${fftSize} at ${sampleRate} Hz: ${lit} of ${litTotal} columns at the sound bright, ${dark} of ${darkTotal} far from it dark${worst}`);
+  }
+  // No input: everything dark.
+  const rgb = draw(null);
+  const bright = Array.from(rgb).filter((v) => v > 5).length;
+  lines.push(`${bright === 0 ? 'ok  ' : 'FAIL'} no spectrum: ${bright} lit values`);
+} catch (error) {
+  lines.push(`FAIL page: ${error.stack || error.message}`);
+}
+document.getElementById('out').textContent = lines.join('\n');
+</script>

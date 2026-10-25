@@ -388,3 +388,18 @@ button.qv-danger.qv-on { background: var(--danger); color: var(--bg); }
 .qv-tempo { font-size: 12px; color: var(--muted); }
 .layout-stacked .qv-preview { flex: 0 0 auto; aspect-ratio: 4 / 3; }
 .layout-stacked .qv-monitors { flex: 0 0 auto; }
+
+/* The Monitor's MIDI rows (T64): a label and its buttons on one line, what is
+   bound under them, so a narrow panel does not clip the Forget buttons. */
+#midi-controls { margin-top: 10px; }
+#midi-controls .row { flex-wrap: wrap; align-items: center; }
+#midi-controls .row > * { flex: 0 1 auto; margin-top: 4px; }
+#midi-controls .row > span, #midi-controls .row > strong { flex: 1 1 6em; }
+#midi-controls .row > output { flex: 1 1 100%; order: 3; margin-top: 0; }
+
+/* The Monitor's beat in the bar (T64): four lights, the current one lit and
+   the first one larger, so a Downbeat press can be seen to take effect. */
+#beat-dots { display: flex; gap: 10px; align-items: center; margin: 8px 0 4px; }
+#beat-dots span { width: 14px; height: 14px; border-radius: 50%; background: var(--line); opacity: 0.5; }
+#beat-dots span:first-child { width: 20px; height: 20px; }
+#beat-dots span.on { background: var(--accent, #4aa3ff); opacity: 1; }

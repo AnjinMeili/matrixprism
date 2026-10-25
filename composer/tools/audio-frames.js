@@ -95,7 +95,7 @@ export async function analyseBuffer(buffer, { fps = 30, gain = 1, beatSource = '
   const meydaKey = new KeyDetector();
   const fluxOnsets = new FluxOnsets(), fluxTempo = new TempoTracker();
   const frame = {
-    sampleRate, frequencyData, timeData, channels: null, fluxData: decibels, keyFftSize: 8192,
+    sampleRate, frequencyData, timeData, channels: null, fluxData: decibels, floatTimeData: wave, keyFftSize: 8192,
     readKeyData: () => { key.getFloatFrequencyData(keyData); return keyData; },
   };
   // Suspensions fall on 128-sample render quanta.
@@ -143,6 +143,9 @@ export async function analyseBuffer(buffer, { fps = 30, gain = 1, beatSource = '
       highRate: features.highRate, air: features.air,
       centroid: centroid(spectrum, sampleRate), flatness: flatness(spectrum),
       rolloff: rolloff(spectrum, sampleRate), flux: flux(spectrum, previous), zcr: zeroCrossingRate(wave),
+      // What the composer sends the patterns (T60): smoothed and scaled to 0..1.
+      sCentroid: features.centroid, sFlatness: features.flatness, sRolloff: features.rolloff, sZcr: features.zcr,
+      lufs: features.lufs, sLoudness: features.loudness,
     };
     values.featuresMs = performance.now() - start;
     values.analyseMs = analyseMs;

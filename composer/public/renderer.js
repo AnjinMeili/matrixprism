@@ -1,6 +1,7 @@
 import { PRELUDE } from './patterns.js';
 import { paramUniforms, paramValues, uniformValue } from './params.js';
 import { SPECTRUM_BINS, SPECTRUM_HISTORY_ROWS, SpectrumHistory } from './audio.js';
+import { RAW_TEXELS, rawTexture } from './spectrum-bands.js';
 import { OverlayLayer } from './overlays.js';
 import { BLEND_GLSL, COMPOSITE_GLSL, TRIM_GLSL } from './mixer.js';
 import { SHAPE_DEFAULTS, SHAPE_GLSL, shapeUniforms } from './shape.js';
@@ -123,7 +124,7 @@ void main() {
 `;
 
 const PATTERN_UNIFORMS = ['u_res', 'u_time', 'u_bass', 'u_mid', 'u_treble',
-  'u_level', 'u_beat', 'u_hue', 'u_spectrum', 'u_wave',
+  'u_level', 'u_centroid', 'u_flatness', 'u_rolloff', 'u_zcr', 'u_loudness', 'u_beat', 'u_hue', 'u_spectrum', 'u_wave', 'u_raw', 'u_raw_nyquist',
   'u_history', 'u_history_head', 'u_history_rows',
   'u_key_number', 'u_key_minor', 'u_key_confidence'];
 
@@ -152,6 +153,14 @@ export class Renderer {
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     this.spectrumTexture = this.createDataTexture();
     this.waveTexture = this.createDataTexture();
+    // The spectrum by frequency for patterns (T62): RAW_TEXELS bytes, 0 Hz to Nyquist.
+    this.rawTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.rawTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, RAW_TEXELS, 1, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE,
+      new Uint8Array(RAW_TEXELS));
+    this.setSampling(gl.LINEAR);
+    this.rawBytes = new Uint8Array(RAW_TEXELS);
+    this.rawNyquist = 24000;
     this.history = new SpectrumHistory();
     this.historyTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.historyTexture);
@@ -310,6 +319,11 @@ export class Renderer {
     gl.uniform1f(u.u_mid, state.audio.mid);
     gl.uniform1f(u.u_treble, state.audio.treble);
     gl.uniform1f(u.u_level, state.audio.level);
+    gl.uniform1f(u.u_centroid, state.audio.centroid ?? 0);
+    gl.uniform1f(u.u_flatness, state.audio.flatness ?? 0);
+    gl.uniform1f(u.u_rolloff, state.audio.rolloff ?? 0);
+    gl.uniform1f(u.u_zcr, state.audio.zcr ?? 0);
+    gl.uniform1f(u.u_loudness, state.audio.loudness ?? 0);
     gl.uniform1f(u.u_beat, state.audio.beat);
     gl.uniform1f(u.u_hue, pattern.manualHue ? state.manualHue ?? state.hue : state.hue);
     gl.uniform1f(u.u_key_number, state.musicalKey?.camelot.number ?? 0);
@@ -324,6 +338,10 @@ export class Renderer {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, this.historyTexture);
     gl.uniform1i(u.u_history, 2);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.rawTexture);
+    gl.uniform1i(u.u_raw, 3);
+    gl.uniform1f(u.u_raw_nyquist, this.rawNyquist);
     gl.uniform1f(u.u_history_head, this.history.nextRow);
     gl.uniform1f(u.u_history_rows, SPECTRUM_HISTORY_ROWS);
     if (pattern.params) {
@@ -383,8 +401,11 @@ export class Renderer {
     this.draw(info);
   }
 
-  uploadAudio(spectrum, wave) {
+  uploadAudio(spectrum, wave, rawInput = null) {
     const gl = this.gl;
+    this.rawNyquist = rawTexture(rawInput, this.rawBytes);
+    gl.bindTexture(gl.TEXTURE_2D, this.rawTexture);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, RAW_TEXELS, 1, gl.LUMINANCE, gl.UNSIGNED_BYTE, this.rawBytes);
     gl.bindTexture(gl.TEXTURE_2D, this.spectrumTexture);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SPECTRUM_BINS, 1, gl.LUMINANCE, gl.UNSIGNED_BYTE, spectrum);
     gl.bindTexture(gl.TEXTURE_2D, this.waveTexture);
@@ -475,7 +496,7 @@ export class Renderer {
     }
     // The beat that moves the shapes, kept for the previews (readPreviews).
     this.shapeClock = [frame.beatPosition ?? 0, frame.changeClock ?? frame.beatPosition ?? 0];
-    this.uploadAudio(frame.spectrum, frame.wave);
+    this.uploadAudio(frame.spectrum, frame.wave, frame.spectrumInput);
     if (this.history.update(frame.spectrum, frame.audioTime)) {
       gl.bindTexture(gl.TEXTURE_2D, this.historyTexture);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SPECTRUM_BINS, SPECTRUM_HISTORY_ROWS,

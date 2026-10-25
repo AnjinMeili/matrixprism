@@ -304,7 +304,7 @@ group is replaced by defaults with a message, without discarding the rest.
 | `hotsave` | `key` (one letter or digit, not T) and `playlistId` (null: a playlist called Hotsave, made on first use) | `hotsaveSettings()` |
 | `randomizer` | `enabled`, `unit` (`seconds`, `beats` or `bars`), `minWait`, `maxWait`, `tracks`; `minSeconds` and `maxSeconds` saved before 2026-10-20 are read as the waits in seconds | `randomizerSettings()` |
 | `tempo` | `mode`, `manualBpm`, `quantize`, `tap` | `tempoSettings()` |
-| `sparkles` | `enabled`, `amount`, `density`, `length`, `shape`, `colour`, `twinkle` | `sparkleSettings()` |
+| `sparkles` | `enabled`, `amount`, `density`, `length`, `shape`, `colour`, `twinkle`, `placement` (anywhere, edges, light, pitch) | `sparkleSettings()` |
 | `view` | The selected view | `app.js` |
 
 The Media Player's file is kept separately in IndexedDB, as is the directory

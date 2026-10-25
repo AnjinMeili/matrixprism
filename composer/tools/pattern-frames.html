@@ -47,7 +47,7 @@ try {
       spectrum: audio.spectrum, spectrumLeft: audio.spectrumLeft, spectrumRight: audio.spectrumRight, wave: audio.wave,
       hue: 0, manualHue: 0, musicalKey: null, brightness: 1, gamma: 1, flock: { count: null }, auroraDotSize: null,
       mediaFit: 'cover', silenceMode: 'quiet', paletteId: 'original', spectrumOptions: SPECTRUM_DEFAULTS,
-      rawSpectrum: audio.plotInput, patternParams: { [pattern.id]: params }, overlays: { enabled: false, elements: [] },
+      rawSpectrum: audio.plotInput, spectrumInput: audio.spectrumInput, patternParams: { [pattern.id]: params }, overlays: { enabled: false, elements: [] },
       wallTime: 0,
     });
     if (n < WARM || (n - WARM) % EVERY) continue;

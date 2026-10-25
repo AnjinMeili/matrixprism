@@ -137,6 +137,7 @@ test('the live input and the same data supplied directly give the same result', 
     getByteFrequencyData(data) { bytes(data, this.channel); }
     getByteTimeDomainData(data) { wave(data); }
     getFloatFrequencyData(data) { data.set(decibels.subarray(0, data.length)); }
+    getFloatTimeDomainData(data) { data.fill(0); }
   }
   class Context {
     constructor() { this.sampleRate = sampleRate; }
@@ -224,4 +225,49 @@ test('the flux source finds the tempo where the bass band is full, free of the f
   const flux = run('flux');
   assert.ok(Math.abs(flux - 125) < 0.5, `flux source: ${flux}`);
   assert.equal(run('bass'), null, 'the bass rule hears no beat');
+});
+
+test('spectral features follow brightness and flatness, and fall to 0 in silence (T60)', () => {
+  const run = (decibels, waveform = 64) => {
+    const audio = new AudioAnalyzer();
+    for (let n = 0; n < 2 * fps; ++n)
+      audio.analyse(frame(() => 0, waveform, { fluxData: decibels }), 1 / fps, 1, n / fps);
+    return audio.features;
+  };
+  const tone = (hz) => {
+    const data = new Float32Array(bins).fill(-120);
+    data[Math.round(hz / (sampleRate / 2 / bins))] = -20;
+    return data;
+  };
+  const dark = run(tone(300)), bright = run(tone(5000));
+  assert.ok(bright.centroid > dark.centroid + 0.4, `centroid ${dark.centroid} to ${bright.centroid}`);
+  assert.ok(bright.rolloff > dark.rolloff + 0.4, `rolloff ${dark.rolloff} to ${bright.rolloff}`);
+  assert.ok(dark.flatness < 0.3, `a tone is not flat: ${dark.flatness}`);
+  assert.ok(run(new Float32Array(bins).fill(-40)).flatness > 0.9, 'noise is flat');
+  for (const value of Object.values(({ ...run(new Float32Array(bins).fill(-Infinity), 0) })))
+    assert.ok(Number.isFinite(value));
+  const silent = run(new Float32Array(bins).fill(-Infinity), 0);
+  assert.deepEqual([silent.centroid, silent.flatness, silent.rolloff, silent.zcr], [0, 0, 0, 0]);
+  // Without an unsmoothed spectrum the features stay at 0.
+  assert.equal(new AudioAnalyzer().analyse(frame(() => 200, 64), 1 / fps, 1, 0).centroid, 0);
+});
+
+test('loudness follows the K-weighted level of the newest samples (T61)', () => {
+  const run = (amplitude, hz = 997) => {
+    const audio = new AudioAnalyzer();
+    const waveform = Float32Array.from({ length: 2048 }, (_, n) => amplitude * Math.sin(2 * Math.PI * hz * n / sampleRate));
+    for (let n = 0; n < 2 * fps; ++n)
+      audio.analyse(frame(() => 0, 0, { floatTimeData: waveform }), 1 / fps, 1, n / fps);
+    return audio.features;
+  };
+  // The waveform repeats every frame, so only whole cycles keep it continuous:
+  // 997 Hz over 1600 samples is not whole, so allow a small error.
+  const loud = run(0.1), quiet = run(0.05), silent = run(0);
+  assert.ok(Math.abs(loud.lufs - -23.01) < 0.5, `lufs ${loud.lufs}`);
+  assert.ok(Math.abs(loud.lufs - quiet.lufs - 6.02) < 0.5, `halving ${loud.lufs - quiet.lufs}`);
+  assert.ok(loud.loudness > quiet.loudness && quiet.loudness > 0 && loud.loudness < 1);
+  assert.equal(silent.loudness, 0);
+  assert.equal(silent.lufs, -100);
+  // Without a float waveform the reading stays at silence.
+  assert.equal(new AudioAnalyzer().analyse(frame(() => 0, 64), 1 / fps, 1, 0).loudness, 0);
 });

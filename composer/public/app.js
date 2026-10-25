@@ -23,6 +23,7 @@ import {
 } from './tempo.js';
 import { DEFAULT_SECONDS, MAX_ENTRIES, PlaylistPlayer, playlistSettings, unusedPlaylistId } from './playlist.js';
 import { SendLimiter, receiverKey, receiverProfile, receiverSettings } from './receivers.js';
+import { MIDI_ACTIONS, MIDI_DEFAULTS, MidiInput, MidiMap, describeBinding, midiSettings } from './midi-input.js';
 import { HOTSAVE_DEFAULTS, HOTSAVE_PLAYLIST_NAME, hotsaveName, hotsaveSettings, lookOf } from './look.js';
 import {
   RANDOMIZER_DEFAULTS, Randomizer, TRACKS, WAIT_UNITS, coverPanel, randomBlend, randomMedia, randomPattern, randomShape,
@@ -85,6 +86,7 @@ const DEFAULTS = {
   tempo: TEMPO_DEFAULTS,
   sparkles: SPARKLE_DEFAULTS,
   hotsave: HOTSAVE_DEFAULTS,
+  midi: MIDI_DEFAULTS,
   // The most frames a second sent to the receiver in use (null: every frame
   // drawn), and each receiver's brightness, gamma and limit by host
   // (receivers.js).
@@ -211,6 +213,8 @@ const view = {
   masterFade: null,
   pairFades: {},
   lastTempo: null,
+  // The last Downbeat or Tap press: { kind, beat the tracker had, until }.
+  pressed: null,
   paletteElapsed: 0,
 };
 
@@ -929,6 +933,57 @@ function renderHotsaveControls() {
   select.value = known ? settings.hotsave.playlistId : '';
 }
 
+// MIDI buttons for the downbeat and tap (midi-input.js, T64): learned pads,
+// kept in the settings. Chrome and Edge only; the page says so elsewhere.
+const midiActions = { downbeat: (seconds) => markDownbeat(seconds), tap: (seconds) => tapTempo(seconds) };
+let midi = null;
+
+function renderMidiControls() {
+  $('midi-status').textContent = midi.input.status;
+  $('midi-connect').hidden = !midi.input.supported || !!midi.input.access;
+  for (const { id } of MIDI_ACTIONS) {
+    const learning = midi.map.learning === id;
+    document.querySelector(`[data-midi-learn="${id}"]`).textContent = learning ? 'Press a pad…' : 'Learn';
+    $(`midi-binding-${id}`).textContent = describeBinding(midi.map.bindings[id]);
+  }
+}
+
+function bindMidiControls() {
+  try {
+    settings.midi = midiSettings(settings.midi);
+  } catch (error) {
+    showError(`Saved MIDI settings were invalid: ${error.message} Restored the defaults.`);
+    settings.midi = midiSettings();
+  }
+  const save = () => {
+    settings.midi = { bindings: { ...midi.map.bindings } };
+    saveSettings();
+    renderMidiControls();
+  };
+  const map = new MidiMap(settings.midi.bindings, (action, seconds) => midiActions[action](seconds), save);
+  midi = { map, input: new MidiInput(map) };
+  $('midi-connect').addEventListener('click', async () => {
+    await midi.input.connect();
+    renderMidiControls();
+  });
+  for (const { id } of MIDI_ACTIONS) {
+    document.querySelector(`[data-midi-learn="${id}"]`).addEventListener('click', () => {
+      map.learn(map.learning === id ? null : id);
+      renderMidiControls();
+    });
+    document.querySelector(`[data-midi-forget="${id}"]`).addEventListener('click', () => {
+      map.forget(id);
+      save();
+    });
+  }
+  renderMidiControls();
+  // Listening again where the browser already allows it, without asking.
+  navigator.permissions?.query({ name: 'midi' }).then((permission) => {
+    if (permission.state === 'granted' && settings.midi.bindings && Object.keys(settings.midi.bindings).length)
+      midi.input.connect().then(renderMidiControls);
+  }).catch(() => {});
+}
+
 function bindHotsaveControls() {
   try {
     settings.hotsave = hotsaveSettings(settings.hotsave);
@@ -1012,12 +1067,21 @@ const taps = new TapTempo();
 
 // The operator marks the downbeat: this moment is the first beat of a bar
 // (TempoTracker.markDownbeat); the tempo stays the tracker's.
-function markDownbeat() {
-  audio.tempo.markDownbeat(performance.now() / 1000);
+// `at` is the press's time on the page's clock when it is known better than
+// now, as a MIDI message's is (the controls call these with nothing).
+const pressTime = (at) => (typeof at === 'number' ? at : performance.now() / 1000);
+
+function markDownbeat(at) {
+  const seconds = pressTime(at);
+  // Say which beat the tracker had at the press: beat 1 means it was lined up
+  // already, anything else is how far it moves (Monitor).
+  view.pressed = { kind: 'Downbeat', beat: view.lastTempo ? view.lastTempo.beatInBar + 1 : null, until: seconds + 4 };
+  audio.tempo.markDownbeat(seconds);
 }
 
-function tapTempo() {
-  const seconds = performance.now() / 1000;
+function tapTempo(at) {
+  const seconds = pressTime(at);
+  view.pressed = { kind: 'Tap', beat: view.lastTempo ? view.lastTempo.beatInBar + 1 : null, until: seconds + 2 };
   const { beats } = TAP_UNITS.find((unit) => unit.id === settings.tempo.tap);
   audio.tempo.tap(seconds, beats);
   const bpm = taps.tap(seconds, beats);
@@ -1623,8 +1687,9 @@ const SPARKLE_HELP = {
     'is on; or Gold to ice, by where in 4 to 16 kHz the hit rose: gold for lower hats and shakers, ice blue for ' +
     'high cymbals.'],
   placement: ['Placement', 'Where sparkles land: anywhere; along edges and curves in the picture; or on its ' +
-    'bright shapes. Faint features count for nothing, and each placement is weighted to give about as many ' +
-    'sparkles as Anywhere.'],
+    'bright shapes; or across the panel by pitch, each hit in the columns at where in 4 to 16 kHz it rose, low ' +
+    'on the left and high on the right. Faint features count for nothing, and each placement is weighted to give ' +
+    'about as many sparkles as Anywhere.'],
 };
 
 const SPARKLE_FORMATS = {
@@ -1757,6 +1822,16 @@ function monitorReadout(tempo, seconds) {
       `manual${settings.tempo.mode === 'manual' ? '' : ` until ${source.label} finds a steady beat${essentiaNote()}`}`) +
     ` · ${Math.round(monitor.onsetsPerMinute(seconds))} onsets a minute · beat ${tempo.beatInBar + 1} of 4` +
     ` · ${audio.features.highRate.toFixed(1)} high hits a second`;
+  // The beat in the bar as four lights, beat 1 the accented one, and what the
+  // last Downbeat or Tap press found.
+  document.querySelectorAll('#beat-dots span').forEach((dot, i) => {
+    dot.classList.toggle('on', i === tempo.beatInBar);
+  });
+  const pressed = view.pressed;
+  $('press-note').textContent = pressed && seconds < pressed.until ? pressed.kind === 'Downbeat' ?
+    (pressed.beat === 1 ? 'Downbeat pressed: it was beat 1 already' :
+      `Downbeat pressed on beat ${pressed.beat}: the bars move to put it on 1`) :
+    `Tap pressed on beat ${pressed.beat}` : '';
   const rows = monitor.rows.length;
   $('monitor-log-status').textContent = (monitor.recording ? 'Recording · ' : '') +
     `${rows} rows (${Math.round(rows / 10)} s) in the log`;
@@ -1892,6 +1967,7 @@ function bindControls() {
   loadShapeSettings();
   bindPlaylistPanel();
   bindHotsaveControls();
+  bindMidiControls();
   bindRandomizerControls();
   bindTempoControls();
   bindMonitorControls();
@@ -2388,6 +2464,7 @@ function tick(now) {
       spectrumOptions: settings.spectrumOptions,
       patternParams: settings.patternParams,
       rawSpectrum: audio.plotInput,
+      spectrumInput: audio.spectrumInput,
       overlays: settings.overlays,
       sparkles: settings.sparkles,
       overlayInfo: overlayInfo(tempo, key),

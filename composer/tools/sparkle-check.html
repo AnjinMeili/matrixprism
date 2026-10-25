@@ -21,6 +21,7 @@ try {
     { name: 'air twinkle past its wrap', at: 1000.1, hits: [], settings: { twinkle: 1, colour: 'place' }, air: 0.6 },
     { name: 'off', at: 1, settings: { enabled: false } },
     { name: 'along edges of a ring and a line', at: 1, settings: { placement: 'edges', density: 1 } },
+    { name: 'across the panel by pitch, with the air', at: 1, settings: { placement: 'pitch', density: 1, twinkle: 1 }, air: 0.5 },
     { name: 'on bright shapes, with the air', at: 1, settings: { placement: 'light', density: 1, twinkle: 1 }, air: 0.5 },
   ];
   // The picture the placements read: a dim gradient with a bright ring and a
@@ -98,7 +99,7 @@ try {
       let wrong = 0, lit = 0, near = 0, first = '';
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
-          const want = sparkleLight(x, y, u, frame).map((v) => Math.round(Math.min(1, v) * 255));
+          const want = sparkleLight(x, y, u, frame, w).map((v) => Math.round(Math.min(1, v) * 255));
           const at = (y * w + x) * 4;
           const got = [pixels[at], pixels[at + 1], pixels[at + 2]];
           if (want.some((v) => v > 0)) ++lit;

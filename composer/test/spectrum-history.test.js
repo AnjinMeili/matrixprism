@@ -64,6 +64,7 @@ test('stereo capture analyses each channel and mirrors a mono input', async (t) 
     getByteFrequencyData(data) { data.fill(levels[this.channel]); }
     getByteTimeDomainData(data) { data.fill(128); }
     getFloatFrequencyData(data) { data.fill(-100); }
+    getFloatTimeDomainData(data) { data.fill(0); }
   }
   class Context {
     constructor(options) { this.sampleRate = 48000; contextOptions.push(options); }
