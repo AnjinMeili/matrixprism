@@ -21,6 +21,14 @@ audio input ─► browser page ──WebSocket──► Node server ──UDP (
                (analyse, render)           (split into packets)
 ```
 
+> **The downloads are not signed yet.** Apple and Microsoft do not yet vouch
+> for MatrixPrism's builds: signing waits for an Apple Developer account and
+> the SignPath Foundation. So macOS and Windows warn once, before the first
+> run; [Quick start](#quick-start) says what to do on each. Every build is made
+> and tested by this repository's release workflow. Its `SHA256SUMS` and a
+> build attestation (`gh attestation verify <file> --repo
+> AnjinMeili/matrixprism`) confirm that a download came from here, unchanged.
+
 It has three parts, each in its own directory:
 
 | Part | Directory | What it is |
@@ -49,8 +57,8 @@ The composer streams to any receiver that takes DDP on UDP port 4048:
 The composer comes as a desktop app, MatrixPrism, for macOS on Apple silicon,
 Windows and Linux. Releases are built and tested by this repository's release
 workflow and appear on the [Releases](https://github.com/AnjinMeili/matrixprism/releases)
-page; the first is on its way. Open the app and choose the receiver under
-Setup: it finds WLED and `matrix-dmx` receivers on the network by itself.
+page. Open the app and choose the receiver under Setup: it finds WLED and
+`matrix-dmx` receivers on the network by itself.
 
 The builds are not yet signed, so each system asks once before the first run:
 
@@ -58,8 +66,9 @@ The builds are not yet signed, so each system asks once before the first run:
   Security, and choose Open Anyway beside MatrixPrism.
 - **Windows:** SmartScreen says the publisher is unknown. Choose More info,
   then Run anyway.
-- **Linux:** check the download against `SHA256SUMS` on the release page.
-  Install the `.deb` with `sudo apt install ./MatrixPrism-<version>-<arch>.deb`,
+- **Any system:** check a download against `SHA256SUMS` on the release page,
+  or with `gh attestation verify <file> --repo AnjinMeili/matrixprism`.
+- **Linux:** install the `.deb` with `sudo apt install ./MatrixPrism-<version>-<arch>.deb`,
   which also fetches the libraries it needs; `dpkg -i` does not, and the app
   then stops for want of one (`sudo apt -f install` puts that right). The
   AppImage needs those libraries installed already. In a virtual machine, a
