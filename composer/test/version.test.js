@@ -24,7 +24,9 @@ test('the version comes from package.json, with git details in a checkout', asyn
 
 test('outside a git checkout only the package version and folder are reported', async (t) => {
   const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'matrixprism-version-'));
-  t.after(() => fs.rm(parent, { recursive: true }));
+  // Windows can hold the folder busy for a moment after git has run in it;
+  // fs.rm retries on EBUSY when given maxRetries.
+  t.after(() => fs.rm(parent, { recursive: true, maxRetries: 10, retryDelay: 100 }));
   const directory = path.join(parent, 'composer');
   await fs.mkdir(directory);
   await fs.writeFile(path.join(directory, 'package.json'), JSON.stringify({ version: '9.8.7' }));

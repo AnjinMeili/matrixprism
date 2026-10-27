@@ -1,0 +1,19 @@
+// A Linux machine for MatrixPrism (GitHub Codespaces, or a local dev container):
+// Ubuntu 24.04 as on the release workflow's Linux runners, the same Node as the
+// workflow, FFmpeg for recording, Xvfb for a screen, and the libraries Electron
+// needs on Linux, and an SSH server so `gh codespace ssh` can run commands in it.
+// The composer needs no npm install; the app's packages come with
+// `cd app && npm ci`. Run the app's checks as the workflow does, for example:
+//   cd app && npm ci && npm run dist:linux
+//   MATRIXPRISM_ELECTRON=$PWD/dist/linux-unpacked/matrixprism MATRIXPRISM_PACKAGED=1 \
+//     MATRIXPRISM_CI=1 MATRIXPRISM_NO_SANDBOX=1 MATRIXPRISM_SOFTWARE_GL=1 xvfb-run -a node check-app.mjs
+{
+  "name": "MatrixPrism",
+  "image": "mcr.microsoft.com/devcontainers/base:noble",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "26.8.1" },
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg xvfb xauth libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libgtk-3-0t64 libgbm1 libasound2t64 libxss1 libxshmfence1 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libpango-1.0-0 libcairo2",
+  "hostRequirements": { "cpus": 2 }
+}

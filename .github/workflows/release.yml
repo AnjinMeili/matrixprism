@@ -108,19 +108,30 @@ jobs:
         env:
           MATRIXPRISM_ELECTRON: ${{ github.workspace }}/${{ matrix.app }}
           MATRIXPRISM_PACKAGED: "1"
+          # A runner renders in software: the checks judge behaviour, not speed.
+          MATRIXPRISM_CI: "1"
         run: |
-          # Linux runners have no screen and no setuid sandbox for an unpacked app.
+          # Linux runners have no screen, no GPU and no setuid sandbox for an
+          # unpacked app.
           run() {
-            if [ "$RUNNER_OS" = Linux ]; then MATRIXPRISM_NO_SANDBOX=1 xvfb-run -a node "$@"; else node "$@"; fi
+            if [ "$RUNNER_OS" = Linux ]; then
+              MATRIXPRISM_NO_SANDBOX=1 MATRIXPRISM_SOFTWARE_GL=1 xvfb-run -a node "$@"
+            else
+              node "$@"
+            fi
           }
-          run check-app.mjs
-          run check-app-discovery.mjs
-          run check-app-saved-state.mjs --strict
-          run check-app-recording.mjs
+          # Every check runs, so one run shows all that fails.
+          failed=""
+          check() { if run "$@"; then echo "PASS $1"; else echo "FAIL $1"; failed="$failed $1"; fi; }
+          check check-app.mjs
+          check check-app-discovery.mjs
+          check check-app-saved-state.mjs --strict
+          check check-app-recording.mjs
           # The stream key: a Linux runner has no keyring, where the app rightly
           # refuses to store a key, so this runs on macOS and Windows only. The
           # microphone check needs a microphone, which no runner has.
-          if [ "$RUNNER_OS" != Linux ]; then run check-app-key.mjs; fi
+          if [ "$RUNNER_OS" != Linux ]; then check check-app-key.mjs; fi
+          if [ -n "$failed" ]; then echo "Failed:$failed"; exit 1; fi
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

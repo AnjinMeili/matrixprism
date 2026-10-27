@@ -18,8 +18,9 @@ test('the YouTube key comes from the environment and is redacted from output', (
   assert.equal(target.url, 'rtmp://a.rtmp.youtube.com/live2/abcd-1234');
   assert.equal(redact(`Opening ${target.url}`, target.secret), 'Opening rtmp://a.rtmp.youtube.com/live2/<key>');
   assert.equal(streamTarget('rtmp://host/app/secretkey').secret, 'secretkey');
-  assert.deepEqual(streamTarget('out.mp4', {}, '/rec'), { kind: 'file', path: '/rec/out.mp4' });
-  assert.deepEqual(streamTarget('/elsewhere/out.mkv', {}, '/rec'), { kind: 'file', path: '/elsewhere/out.mkv' });
+  // Paths in the platform's own form: on Windows, \rec\out.mp4 and a drive letter.
+  assert.deepEqual(streamTarget('out.mp4', {}, '/rec'), { kind: 'file', path: path.join('/rec', 'out.mp4') });
+  assert.deepEqual(streamTarget('/elsewhere/out.mkv', {}, '/rec'), { kind: 'file', path: path.resolve('/elsewhere/out.mkv') });
   assert.throws(() => streamTarget('http://example.com/x'));
   assert.throws(() => streamTarget(undefined));
 });
