@@ -95,6 +95,10 @@ try {
   await send('Page.reload');
   await delay(1000);
   check(await run("!document.getElementById('go-live').disabled"), 'Go live is available when the server has a key');
+  const offered = await run(`(() => { const w = Number(document.getElementById('width').value), h = Number(document.getElementById('height').value);
+    const sizes = [...document.getElementById('live-size').options].map((o) => o.value).filter((v) => v !== 'custom');
+    return { panel: [w, h], sizes, shaped: sizes.length > 0 && sizes.every((v) => { const [a, b] = v.split('x').map(Number); return a * h === b * w; }) }; })()`);
+  check(offered.shaped, `every Size offered has the panel's shape (#6): ${offered.panel.join('x')} offers ${offered.sizes.join(', ')}`);
   await run("document.getElementById('go-live').click()");
   await delay(150);
   check(await liveState() === 'error', 'simulated audio cannot go live silently');
@@ -127,11 +131,12 @@ try {
   await waitLive('saved');
   await Promise.race([receiverClosed, delay(10000)]);
   check(await run("!document.getElementById('record').disabled && !document.getElementById('width').disabled"), 'after Stop live the controls are free again');
-  const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height:format=duration',
+  const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height,sample_aspect_ratio:format=duration',
     '-of', 'json', received]).toString());
   const video = probe.streams.find((s) => s.codec_type === 'video'), audio = probe.streams.find((s) => s.codec_type === 'audio');
   check(video?.width === SIZE[0] && video?.height === SIZE[1], `the receiver got ${video?.width}x${video?.height}, asked ${SIZE.join('x')}`);
   check(!!audio, 'the receiver got audio with the picture');
+  check(video?.sample_aspect_ratio === '1:1', `the picture's pixels are square (#6): ${video?.sample_aspect_ratio}`);
   const seconds = Number(probe.format?.duration ?? 0);
   check(seconds >= 4, `the receiver got ${seconds.toFixed(1)} s of picture`);
   server.kill();

@@ -1,0 +1,35 @@
+# Packaging the desktop app (T65). `npm run dist:mac` stages a clean copy of the app
+# and the composer's files in dist-stage/, then builds a .dmg from it in dist/.
+# Ad hoc signed for now (identity "-"): signing and notarising need the Apple Developer ID (see
+# docs/packaging-plan.md). An ad hoc signature makes the bundle valid but not trusted: macOS will warn
+# on a downloaded copy.
+appId: io.matrixprism.app
+productName: MatrixPrism
+copyright: Copyright © Anjin and contributors. GPL-3.0.
+electronVersion: 45.0.0
+# Plain files, not an archive: the relay runs `git` in its own folder for the version
+# line and serves its pages by reading files, both simpler outside an archive.
+asar: false
+directories:
+  app: dist-stage
+  output: dist
+  buildResources: build
+files:
+  - "**/*"
+mac:
+  category: public.app-category.music
+  icon: build/icon.png
+  identity: "-"
+  # Audio input under the hardened runtime (#7); the helpers get the same.
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  target:
+    - target: dmg
+      arch: [arm64]
+  extendInfo:
+    NSMicrophoneUsageDescription: MatrixPrism listens to the audio you choose so that the patterns can move with the music.
+    NSLocalNetworkUsageDescription: MatrixPrism looks for LED panels and WLED receivers on your network and sends them the picture.
+    NSBonjourServices:
+      - _wled._tcp
+dmg:
+  title: MatrixPrism ${version}

@@ -210,6 +210,14 @@ are drawn once, over the final picture after the main.
 - **Panels differ in persistence**: an outdoor 1/8-scan panel holds each
   pixel longer than an indoor 1/32-scan one, so the same settings can wash
   out. Hence brightness and gamma are kept for each receiver.
+- **The same levels look far darker in a video than on the panel.** A
+  four-input look that looked right on the panel averaged 6.9 of 255 in the
+  frames sent, drawn through the renderer on a recorded radio input (about
+  3% of full, 12% of pixels lit), and the recordings and live stream carried
+  those levels unchanged. Video gamma (T67) now lifts them for video only:
+  `check-video-gamma` records the Panel Range card through the real page at 1
+  and 2.2 and every grey bar comes out within one level of the level sent and
+  of the lifted level (16 becomes 72).
 - **Two composers streaming to one matrix take turns on the panel**: the
   receiver shows whichever sender pushed last.
 - Some boards' Wi-Fi suffers from their own display refresh; the composer
@@ -264,3 +272,37 @@ mapping moves with the Gain setting.
 
 **Not covered:** other genres, a live input, Safari, and whether any pattern
 looks better for using them (none does yet).
+
+## Go live's size and bitrate
+
+Asked: why a live stream to YouTube came in at 1,586 Kbps at 640×360 when
+YouTube's stream manager recommended 750 Kbps, and why the panel's 4:3
+picture was sent in 16:9 sizes. Measured with `tools/measure-live-bitrate.mjs`:
+a synthetic 256×192 picture, sparse (a few moving cells on black, like a
+typical look) and busy (FFmpeg's test pattern), through the live encoder's
+real settings to a local RTMP receiver, reading each second's bitrate and the
+picture's shape with ffprobe.
+
+| Before | Sparse | Busy | Asked |
+| --- | --- | --- | --- |
+| 640×360 | 280 kbps | 1,551 kbps | 1,500 |
+| 1280×720 | 411 | 4,173 | 4,147 |
+| 1920×1080 | 559 | 9,081 | 9,331 |
+
+The rate was a ceiling, not a constant: on a sparse picture x264 sent a fifth
+to a tenth of it. The frames were 16:9 but marked to display as 4:3, with
+non-square pixels. Done: sizes are now whole multiples of the panel in its
+own shape, with square pixels and no bars; the stream is true CBR (a floor
+equal to the rate, HRD signalled) at a rate per size class from YouTube's
+live encoder page (each class's minimum; 750 kbps for the two small classes,
+as YouTube's stream manager asked).
+
+| After | Sparse | Busy | Asked |
+| --- | --- | --- | --- |
+| 512×384 | 752 kbps | 756 kbps | 750 |
+| 768×576 | 3,002 | 2,970 | 3,000 |
+| 1024×768 | 3,003 | 3,003 | 3,000 |
+| 1280×960 | 5,004 | 4,967 | 5,000 |
+
+Not covered: what YouTube's stream manager says of each size and rate, and
+how its player frames a 4:3 stream; those need a test stream.

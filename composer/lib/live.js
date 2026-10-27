@@ -2,10 +2,12 @@
 // picture and the audio input as it does for a recording (public/recording.js)
 // and uploads the chunks; each goes straight into FFmpeg, which enlarges the
 // picture and sends it to YouTube over RTMP. Nothing is written to disk.
-// The stream key comes only from the server's environment
-// (YOUTUBE_STREAM_KEY), never from the page, and is removed from anything
+// The stream key comes from the server's environment (YOUTUBE_STREAM_KEY),
+// never from the page; the desktop app may set it with setKey (#8). It is
+// removed from anything
 // FFmpeg says before it is kept or shown. The destination is fixed on the
 // command line, not chosen by the page.
+import { ffmpegStartMessage } from './ffmpeg-path.js';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { YOUTUBE_INGEST, ffmpegArgs, parseSize, redact } from './stream-out.js';
@@ -33,8 +35,13 @@ export function liveOptions(input) {
 }
 
 export class LiveService {
-  constructor({ key = process.env.YOUTUBE_STREAM_KEY, ingest = YOUTUBE_INGEST, spawnEncoder = spawn } = {}) {
+  constructor({ key = process.env.YOUTUBE_STREAM_KEY, ingest = YOUTUBE_INGEST, spawnEncoder = spawn,
+    hint = 'Set YOUTUBE_STREAM_KEY to go live' } = {}) {
     this.key = KEY_PATTERN.test(key ?? '') ? key : null;
+    this.hint = hint;
+    // A key kept somewhere that may ask the person before it is read (the
+    // desktop app's Keychain, #8): fetched when a stream starts, not before.
+    this.unlockKey = null;
     this.ingest = ingest;
     this.spawnEncoder = spawnEncoder;
     this.sessions = new Map();
@@ -42,7 +49,28 @@ export class LiveService {
   }
 
   get available() {
-    return this.key !== null;
+    return this.key !== null || this.unlockKey !== null;
+  }
+
+  // A stored key, read only when it is needed: `unlock` resolves with the key.
+  setKeyUnlock(unlock) {
+    this.unlockKey = unlock;
+  }
+
+  // Sets or, with an empty key, clears the stream key; refused while a stream
+  // is running, since its FFmpeg holds the old key and its output is redacted
+  // with it. Returns false for a key that is not a stream key's shape.
+  setKey(key) {
+    if (this.starting || [...this.sessions.values()].some(busy))
+      throw failure('Stop the live stream before changing the stream key', 409);
+    this.unlockKey = null;
+    if (!key) {
+      this.key = null;
+      return true;
+    }
+    if (!KEY_PATTERN.test(key)) return false;
+    this.key = key;
+    return true;
   }
 
   get(id) {
@@ -65,10 +93,21 @@ export class LiveService {
 
   async start(input) {
     const options = liveOptions(input);
-    if (!this.available) throw failure('Set YOUTUBE_STREAM_KEY to the stream key from YouTube Studio and restart the composer', 409);
+    if (!this.available) throw failure(this.hint, 409);
     if (this.starting || [...this.sessions.values()].some(busy)) throw failure('Another live stream is active', 409);
     this.starting = true;
     try {
+      if (this.key === null && this.unlockKey) {
+        let key;
+        try {
+          key = await this.unlockKey();
+        } catch (error) {
+          throw failure(`The stored stream key could not be unlocked: ${error.message}`, 409);
+        }
+        if (!KEY_PATTERN.test(key ?? '')) throw failure('The stored stream key could not be read; enter it again beside Go live', 409);
+        this.key = key;
+        this.unlockKey = null;
+      }
       const session = { ...options, id: randomBytes(24).toString('hex'), state: 'recording',
         bytes: 0, sequence: 0, uploading: false, started: Date.now(), stderr: '' };
       const args = ffmpegArgs({ width: options.outWidth, height: options.outHeight,
@@ -78,7 +117,7 @@ export class LiveService {
       session.child.stderr.on('data', (data) => {
         session.stderr = (session.stderr + redact(data, this.key)).slice(-2000);
       });
-      session.child.once('error', (error) => this.cancel(session, `Cannot start FFmpeg: ${error.message}`).catch(() => {}));
+      session.child.once('error', (error) => this.cancel(session, ffmpegStartMessage(error)).catch(() => {}));
       session.child.once('close', (code) => {
         clearTimeout(session.timer);
         session.child = null;
@@ -155,7 +194,7 @@ export async function liveRequest(service, request, response, url) {
   let session;
   try {
     if (url.pathname === '/api/live') {
-      if (request.method === 'GET') json(200, { available: service.available });
+      if (request.method === 'GET') json(200, service.available ? { available: true } : { available: false, hint: service.hint });
       else if (request.method === 'POST') json(201, await service.start(JSON.parse((await readBody(request, 2048)).toString())));
       else throw failure('Live method is not allowed', 405);
       return;

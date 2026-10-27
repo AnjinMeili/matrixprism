@@ -31,6 +31,8 @@
     "check-stream-out": "node tools/check-stream-out.mjs",
     "check-live": "node tools/check-live.mjs",
     "check-live-page": "node tools/check-live-page.mjs",
+    "check-saved-state": "node tools/check-saved-state.mjs --strict",
+    "check-video-gamma": "node tools/check-video-gamma.mjs",
     "frame-compare": "node tools/frame-compare.mjs",
     "pattern-pixels": "node tools/pattern-pixels.mjs"
   },

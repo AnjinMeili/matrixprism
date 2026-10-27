@@ -1,3 +1,4 @@
+import { ffmpegAvailable, ffmpegStartMessage } from './ffmpeg-path.js';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -21,9 +22,12 @@ export function recordingOptions(input) {
 }
 
 export class RecordingService {
-  constructor({ directory = path.join(os.homedir(), 'Movies', 'MatrixPrism'), spawnEncoder = spawn } = {}) {
+  constructor({ directory = path.join(os.homedir(), 'Movies', 'MatrixPrism'), spawnEncoder = spawn,
+    // Checked when a recording starts; a stand-in encoder (tests) needs no real FFmpeg.
+    checkEncoder = spawnEncoder === spawn ? ffmpegAvailable : async () => {} } = {}) {
     this.directory = path.resolve(directory);
     this.spawnEncoder = spawnEncoder;
+    this.checkEncoder = checkEncoder;
     this.sessions = new Map();
     this.starting = false;
   }
@@ -49,6 +53,7 @@ export class RecordingService {
 
   async start(input) {
     const options = recordingOptions(input);
+    await this.checkEncoder();
     if (this.starting || [...this.sessions.values()].some(busy))
       throw failure('Another recording is still active', 409);
     this.starting = true;
@@ -127,7 +132,7 @@ export class RecordingService {
       }
       session.timer = setTimeout(() => this.cancel(session, 'Encoder timed out').catch(() => {}), 300000);
       session.timer.unref();
-      session.child.once('error', (error) => this.cancel(session, `Cannot start FFmpeg: ${error.message}`).catch(() => {}));
+      session.child.once('error', (error) => this.cancel(session, ffmpegStartMessage(error)).catch(() => {}));
       session.child.once('close', async (code) => {
         clearTimeout(session.timer);
         session.child = null;

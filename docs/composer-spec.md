@@ -54,6 +54,19 @@ same-origin POST, loopback peer. Record and Go live do not run together, and
 each locks the matrix size, receiver and audio input. See
 [recording-plan.md](recording-plan.md).
 
+### Video gamma (T67)
+
+Record and Go live capture a 2D canvas (`VideoCanvas` in
+`public/video-gamma.js`), not the preview: each frame sent to the panel,
+drawn through a table that turns each level v into
+`255 * (v / 255) ^ (1 / videoGamma)`. The panel is close to linear in light
+and a screen is not, so the panel's levels look far darker in a video than on
+the panel; at 2.2 (the default) a screen's light follows the panel's, and at 1
+the video carries the panel's levels as sent. The slider, Video gamma in the
+Record bar (1 to 3), is saved as `settings.videoGamma` and may be moved while
+recording or live. The panel and the preview are unchanged. See "The panel
+against the preview" in [findings.md](findings.md).
+
 ### Experimental recording (T47, preview-recording branch)
 
 `public/recording.js` captures the final preview immediately after rendering,

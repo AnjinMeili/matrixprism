@@ -37,7 +37,26 @@ The composer streams to any receiver that takes DDP on UDP port 4048:
 
 ## Quick start
 
-On the Mac or PC:
+The composer comes as a desktop app, MatrixPrism, for macOS on Apple silicon,
+Windows and Linux. Releases are built and tested by this repository's release
+workflow and appear on the [Releases](https://github.com/AnjinMeili/matrixprism/releases)
+page; the first is on its way. Open the app and choose the receiver under
+Setup: it finds WLED and `matrix-dmx` receivers on the network by itself.
+
+The builds are not yet signed, so each system asks once before the first run:
+
+- **macOS:** the app is blocked at first. Open System Settings, Privacy &
+  Security, and choose Open Anyway beside MatrixPrism.
+- **Windows:** SmartScreen says the publisher is unknown. Choose More info,
+  then Run anyway.
+- **Linux:** check the download against `SHA256SUMS` on the release page.
+
+FFmpeg is a separate install, needed only for Record and Go live (on a Mac,
+`brew install ffmpeg`).
+
+### Running from the source
+
+For developing the composer, or on a computer the app does not cover:
 
 ```sh
 git clone https://github.com/AnjinMeili/matrixprism.git
@@ -47,11 +66,10 @@ npm start -- --ddp <receiver host>
 
 There is no `npm install` step: the composer needs only Node.js 18 or
 newer, and the one library its server uses, `ws`, is kept in
-`composer/lib/vendor/ws/`.
-
-Then open <http://localhost:8080/> and choose the receiver under Setup.
-`<receiver host>` is the receiver's IP address or name, such as
-`wled-e1f2a3.local`; it can be left out and the receiver chosen in the page.
+`composer/lib/vendor/ws/`. Then open <http://localhost:8080/> and choose the
+receiver under Setup. `<receiver host>` is the receiver's IP address or name,
+such as `wled-e1f2a3.local`; it can be left out and the receiver chosen in
+the page. The desktop app's own sources and build are in [app/](app/README.md).
 
 To use `matrix-dmx` as the receiver, on the Raspberry Pi:
 

@@ -35,19 +35,34 @@ export function redact(text, secret) {
   return secret ? String(text).split(secret).join('<key>') : String(text);
 }
 
+// A live stream's bitrate by size class (#1). YouTube's live encoder page (read
+// 2026-10-27, support.google.com/youtube/answer/2853702) gives H.264 at 30 fps:
+// 360p and 480p 0.4 to 4 Mbps, 720p 3 to 8, 1080p 5 to 14, 1440p 7 to 21, 2160p
+// 11 to 42; YouTube's stream manager recommended 750 Kbps for a 640×360 stream.
+// The least load within that: each class's minimum, and 750 for the two small
+// ones. A size is in the class of the smallest standard size with at least as
+// many pixels, so 1024×768 is a 720p stream and 1280×960 a 1080p one.
+const LIVE_CLASSES = [[640 * 360, 750], [854 * 480, 750], [1280 * 720, 3000], [1920 * 1080, 5000],
+  [2560 * 1440, 7000], [Infinity, 11000]];
+
 export function defaultBitrate(width, height) {
-  return Math.max(1500, Math.min(12000, Math.round(width * height * 4.5 / 1000)));
+  return LIVE_CLASSES.find(([pixels]) => width * height <= pixels)[1];
 }
 
 // A stream always has a fixed bitrate; a file keeps constant quality (CRF 18,
-// whose size follows the picture) unless `kbps` is given.
+// whose size follows the picture) unless `kbps` is given. A live stream is true
+// CBR, as YouTube asks: without a floor (-minrate, HRD signalled, filler) x264
+// sent a fifth to a tenth of the rate on a sparse picture (#1). Pixels are square
+// (setsar=1): scaling the panel's 4:3 picture to another size otherwise keeps 4:3
+// on screen by marking the pixels non-square (#6).
 export function ffmpegArgs({ width, height, fps = 30, kbps, smooth = false, target }) {
   const live = target.kind === 'rtmp';
   const rate = kbps ?? (live ? defaultBitrate(width, height) : null);
   return ['-hide_banner', '-f', 'matroska', '-i', 'pipe:0', '-map', '0:v:0', '-map', '0:a:0',
-    '-vf', `fps=${fps},scale=${width}:${height}:flags=${smooth ? 'bicubic' : 'neighbor'},format=yuv420p`,
+    '-vf', `fps=${fps},scale=${width}:${height}:flags=${smooth ? 'bicubic' : 'neighbor'},setsar=1,format=yuv420p`,
     '-c:v', 'libx264', '-preset', 'veryfast', ...(live ? ['-tune', 'zerolatency'] : []),
     ...(rate ? ['-b:v', `${rate}k`, '-maxrate', `${rate}k`, '-bufsize', `${rate * 2}k`] : ['-crf', '18']),
+    ...(live ? ['-minrate', `${rate}k`, '-nal-hrd', 'cbr'] : []),
     '-g', String(fps * 2), '-sc_threshold', '0',
     '-c:a', 'aac', '-b:a', '128k', '-ar', '44100',
     ...(live ? ['-f', 'flv', target.url] : ['-n', '-movflags', '+faststart', target.path])];

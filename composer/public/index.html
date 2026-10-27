@@ -27,20 +27,22 @@
       <option value="software">Software H.264</option>
       <option value="hardware">Mac hardware H.264</option>
     </select></label>
+    <label title="Lifts the dark levels of recordings and the live stream so that on a screen they look as the panel does; the panel and the preview are unchanged. 2.2 matches a screen to the panel; 1 records the panel's levels as sent">Video gamma
+      <input id="video-gamma" type="range" min="1" max="3" step="0.05"> <output id="video-gamma-value"></output></label>
     <output id="recording-status" role="status">Not recording</output>
     <a id="recording-download" hidden>Download MP4</a>
     <span class="live-group" role="group" aria-label="Live stream">
     <button id="go-live" type="button" title="Send the composed preview and the live audio input to YouTube">Go live</button>
-    <label>Size <select id="live-size">
-      <option value="1280x720">1280×720</option>
-      <option value="1920x1080">1920×1080</option>
-      <option value="854x480">854×480</option>
-      <option value="640x360">640×360</option>
+    <label>Size <select id="live-size" title="Whole multiples of the panel, in its own shape; YouTube frames it">
       <option value="custom">Custom…</option>
     </select></label>
     <label id="live-custom" hidden><input id="live-width" type="number" min="2" max="4096" step="2" value="1280" aria-label="Live width">
       × <input id="live-height" type="number" min="2" max="4096" step="2" value="720" aria-label="Live height"></label>
     <output id="live-status" role="status">Not live</output>
+    <span id="live-key" hidden><input id="live-key-input" type="password" autocomplete="off" spellcheck="false"
+      placeholder="Stream key" aria-label="Stream key"><button id="live-key-save" type="button"
+      title="Keep the stream key from YouTube Studio in this computer's secure store">Save key</button><button
+      id="live-key-clear" type="button" hidden title="Forget the stored stream key">Clear key</button></span>
     </span>
   </section>
 

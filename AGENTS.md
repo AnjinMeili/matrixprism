@@ -80,6 +80,12 @@ npm run check-monitor-key    # composer: after any change to key-detector.js, ke
 npm run check-stream-out     # composer: after any change to tools/stream-out.mjs or lib/stream-out.js
 npm run check-live           # composer: after any change to lib/live.js or the live endpoint in server.js
 npm run check-live-page      # composer: after any change to the Go live controls in app.js or index.html
+npm run check-video-gamma    # composer: after any change to video-gamma.js or what Record and Go live capture
+npm run check-saved-state    # composer: after adding or changing any control, or how settings are saved
+cd app && npm test           # desktop app: the stream key store
+node app/check-app-key.mjs   # desktop app: after any change to the stream key (stream-key.mjs, main.mjs, preload.cjs)
+node app/check-app-microphone.mjs # desktop app: after any change to the entitlements or the microphone
+node app/check-app-saved-state.mjs --strict # desktop app: after any change to settings, the window or main.mjs
 make -C receiver test         # receiver protocol, recording, scene tool
 ```
 
@@ -165,6 +171,16 @@ make -C receiver test         # receiver protocol, recording, scene tool
   flash against beep, the key in no log). `npm run check-live-page` presses
   Go live in headless Chrome with a fake microphone. Both need ffmpeg and
   ffprobe and ports 19351 and 19352 free; neither uses YouTube.
+- `npm run check-saved-state` sets every control on the page to another
+  value as a person would, reloads, and fails on any that comes back changed;
+  it never sets a receiver or an address. `app/check-app-saved-state.mjs`
+  does the same across a restart of the desktop app, and after a forced kill.
+  Neither covers the Media Player's folder, which needs the folder dialog,
+  nor the window's place, which Electron hides from DevTools.
+- `npm run check-video-gamma` records the Panel Range card through Record in
+  headless Chrome at Video gamma 1 and 2.2 and reads the grey bars of each
+  MP4: at 1 the levels sent, at 2.2 the lifted levels, within five levels.
+  Needs ffmpeg. It does not look at the picture or cover Safari or YouTube.
 - `node tools/record-input.mjs <device name part> <seconds> <out.wav>`
   records an input, such as BlackHole, through Chrome, every
   sample; ffmpeg's avfoundation capture on macOS has been measured dropping about 12% of the
@@ -197,6 +213,12 @@ make -C receiver test         # receiver protocol, recording, scene tool
   (`--signal`), with chosen settings (`--params`), and reports how high the
   balls get each minute and how many lie on the floor. Run it after
   changing Bounce.
+- `node tools/measure-live-bitrate.mjs` is a measurement: it sends a
+  synthetic panel-sized picture, sparse and busy, through Go live's real
+  encoder settings to a local RTMP receiver and reports each size's bitrate
+  per second and the picture's shape (`--sizes`, `--source`, `--keep`). Run it
+  after changing `lib/stream-out.js` or Go live's sizes; compare against "Go
+  live's size and bitrate" in `docs/findings.md`. It does not use YouTube.
 - `npm run measure-colours` is a measurement, not a pass or fail check: it
   reports how many colours, hues and brightness levels each pattern sends.
   Use it when a question about colour comes up, and compare against "Colour
@@ -246,19 +268,23 @@ make -C receiver test         # receiver protocol, recording, scene tool
 
 ## Working rules
 
-- **Branches.** New work goes on a branch off `main`. `main` is releasable:
-  merge into it only when every test and check passes and the change has
-  been tried by Anjin and accepted. When work is ready, say how to
-  try it on the branch and wait.
-- **Commits, merges and pushes.** Commit finished work to the working branch.
-  Merge or push only when asked, and treat them as separate asks. Delete a
-  branch only once it is in `main`, and say so.
+- **Branches.** New work goes on a branch off `main`, checked out in the
+  working clone; a `git worktree` only when two pieces of work run at once.
+  Notes-only and docs-only edits can go straight to `main`. `main` is
+  releasable: merge into it only when every test and check passes and the
+  change has been tried by Anjin and accepted. When work is ready, say how to
+  try it on the branch, with a test plan, and wait.
+- **Commits, merges and pushes.** Commit finished work to the working branch,
+  every commit with a test plan in its message (the shape is in
+  [docs/templates/commit-message.txt](docs/templates/commit-message.txt);
+  the other records' shapes are beside it). Anjin's acceptance is the
+  go-ahead to run the checks again, merge and push. Delete a branch only once
+  it is in `main`, and say so.
 - **A running copy.** The composer's server reads the page from disk, so
   checking out a branch in a clone where the composer is running changes
   what the browser gets on its next reload; changes to `server.js` or `lib/`
-  need the server restarted. Do branch work that should not reach a running
-  copy in a `git worktree`; the composer has no npm dependencies, so the
-  tests run there without `npm install`.
+  need the server restarted, which the agent may do. The composer has no npm
+  dependencies, so its tests run in any checkout without `npm install`.
 - **Reporting goes in the repo.** Keep `docs/roadmap.md`, the READMEs and
   `composer-spec.md` in step with the code, in the same commit where
   practical, and state what was and was not verified. A measurement that

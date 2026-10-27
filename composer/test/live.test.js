@@ -40,6 +40,49 @@ test('without a usable key from the environment it cannot go live and says how t
   }
 });
 
+test('the desktop app can set and clear the key, but not to a bad one or during a stream (#8)', async () => {
+  const { made, spawnEncoder } = fakeEncoder();
+  const service = new LiveService({ key: '', spawnEncoder, hint: 'Enter the stream key in Go live' });
+  await assert.rejects(service.start(source), /Enter the stream key in Go live/);
+  for (const bad of ['a/b', 'abcd?x=1', 'abc', ' '.repeat(8)]) assert.equal(service.setKey(bad), false);
+  assert.equal(service.available, false);
+  assert.equal(service.setKey(KEY), true);
+  assert.equal(service.available, true);
+  const session = service.get((await service.start(source)).id);
+  assert.ok(made[0].args.at(-1).endsWith(`/${KEY}`));
+  assert.throws(() => service.setKey('wxyz-9876'), /Stop the live stream/);
+  assert.throws(() => service.setKey(''), /Stop the live stream/);
+  await service.cancel(session);
+  assert.equal(service.setKey(''), true);
+  assert.equal(service.available, false);
+});
+
+test('a stored key is unlocked only when a stream starts, and a failure says so (#8)', async () => {
+  const { made, spawnEncoder } = fakeEncoder();
+  let asked = 0;
+  const service = new LiveService({ key: '', spawnEncoder });
+  service.setKeyUnlock(async () => { ++asked; return KEY; });
+  assert.equal(service.available, true);
+  assert.equal(asked, 0);
+  const session = service.get((await service.start(source)).id);
+  assert.equal(asked, 1);
+  assert.ok(made[0].args.at(-1).endsWith(`/${KEY}`));
+  await service.cancel(session);
+  const second = service.get((await service.start(source)).id);
+  assert.equal(asked, 1);
+  await service.cancel(second);
+
+  const refused = new LiveService({ key: '', spawnEncoder });
+  refused.setKeyUnlock(async () => { throw new Error('User canceled'); });
+  await assert.rejects(refused.start(source), /could not be unlocked: User canceled/);
+  assert.equal(refused.starting, false);
+  const garbled = new LiveService({ key: '', spawnEncoder });
+  garbled.setKeyUnlock(async () => 'not a key!');
+  await assert.rejects(garbled.start(source), /enter it again/);
+  garbled.setKey('');
+  assert.equal(garbled.available, false);
+});
+
 test('chunks go in order into FFmpeg, which sends to the fixed address, and Stop ends the stream', async () => {
   const { made, spawnEncoder } = fakeEncoder();
   const service = new LiveService({ key: KEY, ingest: 'rtmp://example.test/live', spawnEncoder });
@@ -47,7 +90,7 @@ test('chunks go in order into FFmpeg, which sends to the fixed address, and Stop
   const [child] = made;
   assert.equal(child.command, 'ffmpeg');
   assert.equal(child.args.at(-1), `rtmp://example.test/live/${KEY}`);
-  assert.ok(child.args.includes('fps=30,scale=1280:720:flags=neighbor,format=yuv420p'));
+  assert.ok(child.args.includes('fps=30,scale=1280:720:flags=neighbor,setsar=1,format=yuv420p'));
   await service.append(session, 0, Buffer.from('one'));
   await assert.rejects(service.append(session, 5, Buffer.from('x')), /out of order/);
   await service.append(session, 1, Buffer.from('two'));
@@ -106,6 +149,8 @@ async function call(service, request) {
 test('the endpoints answer only a same-origin page on this computer', async () => {
   const service = new LiveService({ key: KEY, spawnEncoder: fakeEncoder().spawnEncoder });
   assert.deepEqual((await call(service, fakeRequest('GET', '/api/live'))).body, { available: true });
+  const keyless = new LiveService({ key: '', spawnEncoder: fakeEncoder().spawnEncoder, hint: 'Enter the stream key' });
+  assert.deepEqual((await call(keyless, fakeRequest('GET', '/api/live'))).body, { available: false, hint: 'Enter the stream key' });
   assert.equal((await call(service, fakeRequest('POST', '/api/live', { body: JSON.stringify(source) }))).status, 403);
   assert.equal((await call(service, fakeRequest('POST', '/api/live',
     { origin: 'http://evil.test', body: JSON.stringify(source) }))).status, 403);

@@ -41,6 +41,10 @@ the measurements behind it are in [findings.md](findings.md).
 - Go live: the preview and the live audio sent to YouTube, enlarged to a
   chosen size, from the Record bar; and `composer/tools/stream-out.mjs`,
   which does the same for a recording under way, to an MP4 or a stream.
+- Video gamma: recordings and the live stream lift the panel's dark levels
+  so that on a screen they look as the panel does (2.2 by default; 1 keeps the
+  panel's levels). Checked through Record in headless Chrome; not yet seen on
+  YouTube or in Safari.
 
 ## How it is checked
 
@@ -109,6 +113,12 @@ the measurements behind it are in [findings.md](findings.md).
    (some, such as djay Pro by forum reports, sync by Ableton Link only, which
    needs a native helper); the
    research route is a measured trial of the small Beat This! ONNX model.
+11. **Packaging**: a download-and-double-click executable per platform, a
+    container for always-on Linux hosts, and a release-only GitHub Actions
+    workflow with signing and attestations: [packaging-plan.md](packaging-plan.md).
+    Nothing is built; several decisions are open. Recording and live
+    streaming from the app on all three systems:
+    [capture-streaming-plan.md](capture-streaming-plan.md).
 
 Decisions on audio analysis (2026-10-24):
 

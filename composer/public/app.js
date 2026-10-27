@@ -44,6 +44,8 @@ import { buildQuadView } from './quad-view.js';
 import { helpPopover } from './help.js';
 import { buildParamControls } from './param-controls.js';
 import { PreviewRecorder } from './recording.js';
+import { defaultLiveSize, liveSizes } from './live-sizes.js';
+import { VIDEO_GAMMA_DEFAULT, VideoCanvas, videoGamma } from './video-gamma.js';
 
 const STORAGE_KEY = 'matrix-companion-settings';
 const READOUT_INTERVAL_MS = 250;
@@ -92,6 +94,14 @@ const DEFAULTS = {
   // (receivers.js).
   maxFps: null,
   receivers: {},
+  // How much recordings and the live stream lift the panel's levels for
+  // screens (video-gamma.js); the panel is unchanged.
+  videoGamma: VIDEO_GAMMA_DEFAULT,
+  // Kept so they come back after a restart (#10).
+  recordingEncoder: 'software',
+  liveSize: null,
+  liveCustom: { width: 1280, height: 720 },
+  monitorRecord: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -109,6 +119,7 @@ function loadSettings() {
 
 const settings = loadSettings();
 settings.patternParams = cleanPatternParams(settings.patternParams);
+settings.videoGamma = videoGamma(settings.videoGamma);
 // Each receiver's settings, checked before anything uses them; any dropped
 // are named once the page is up (bindMatrixControls).
 const { receivers: savedReceivers, dropped: droppedReceivers } = receiverSettings(settings.receivers);
@@ -166,10 +177,14 @@ function syncCaptureControls() {
   const recordingBusy = recording.busy, liveBusy = live.busy;
   $('record').disabled = liveBusy || (recordingBusy && recording.state !== 'recording');
   $('go-live').disabled = !liveAvailable || recordingBusy || (liveBusy && live.state !== 'recording');
-  for (const id of ['recording-encoder', 'live-size', 'live-width', 'live-height', 'width', 'height', 'detect', 'host', 'receiver-list', 'audio-source', 'audio-retake'])
+  for (const id of ['recording-encoder', 'live-size', 'live-width', 'live-height', 'live-key-input', 'live-key-save', 'live-key-clear',
+    'width', 'height', 'detect', 'host', 'receiver-list', 'audio-source', 'audio-retake'])
     $(id).disabled = recordingBusy || liveBusy;
 }
 let liveAvailable = false;
+// What Record and Go live capture: the frame sent to the panel, lifted for
+// screens by Video gamma.
+const videoCanvas = new VideoCanvas();
 const recording = new PreviewRecorder((result) => {
   $('record').textContent = result.state === 'recording' ? 'Stop recording' : 'Record';
   document.querySelector('.recording-bar').dataset.state = result.state;
@@ -479,6 +494,22 @@ async function detectSize() {
   }
 }
 
+// Go live's sizes follow the panel (#6): whole multiples in its own shape; the
+// one chosen is kept when the panel's size still offers it, and saved (#10).
+// On start the list holds only Custom, so the saved choice is used instead.
+function fillLiveSizes(starting = false) {
+  const select = $('live-size'), was = starting ? settings.liveSize : select.value;
+  const sizes = liveSizes(settings.width, settings.height);
+  for (const option of [...select.options]) if (option.value !== 'custom') option.remove();
+  for (const size of sizes)
+    select.insertBefore(new Option(`${size.width}×${size.height} (×${size.scale})`, `${size.width}x${size.height}`), select.lastElementChild);
+  const fallback = sizes.length ? defaultLiveSize(sizes) : null;
+  select.value = was === 'custom' || [...select.options].some((o) => o.value === was) ? was
+    : fallback ? `${fallback.width}x${fallback.height}` : 'custom';
+  $('live-custom').hidden = select.value !== 'custom';
+  settings.liveSize = select.value;
+}
+
 function applyMatrixSize(width, height) {
   if ((recording.busy || live.busy) && (width !== settings.width || height !== settings.height)) {
     $('width').value = settings.width;
@@ -495,6 +526,7 @@ function applyMatrixSize(width, height) {
   $('height').value = height;
   renderer.setSize(width, height);
   updateFlockControls();
+  fillLiveSizes();
   saveSettings();
   if (wasStreaming)
     startStreaming();
@@ -799,7 +831,7 @@ function bindMediaControls() {
   // over if the browser still allows it to be read, and otherwise waits for
   // the Reopen button, because asking for permission needs a click.
   recallMediaFile().then((file) => file && !folder.name && load(file, false)).catch(() => {});
-  recallMediaFolder().then(async (handle) => {
+  const recalled = recallMediaFolder().then(async (handle) => {
     if (!handle || folder.name)
       return;
     if (await handle.queryPermission({ mode: 'read' }) === 'granted')
@@ -807,6 +839,14 @@ function bindMediaControls() {
     else
       reopen(handle);
   }).catch(() => {});
+  // The desktop app calls this on start as if clicked (#10), so a remembered
+  // folder opens without the Reopen button; a browser keeps the button, since a
+  // page may only ask to read a folder again straight after a click.
+  window.matrixprismReopenFolder = async () => {
+    await recalled;
+    if (remembered && !folder.name) $('media-folder-reopen').click();
+    return Boolean(remembered);
+  };
 }
 
 // ---------- playlists ----------
@@ -1545,11 +1585,30 @@ function bindMatrixControls() {
     if (recording.state === 'recording') await recording.stop();
     else {
       if (audio.context) await audio.context.resume().catch(() => {});
-      await recording.start($('preview'), audio.stream, $('recording-encoder').value);
+      videoCanvas.resize(settings.width, settings.height);
+      await recording.start(videoCanvas.canvas, audio.stream, $('recording-encoder').value);
     }
   });
   window.addEventListener('pagehide', () => { recording.abandon(); live.abandon(); });
-  $('live-size').addEventListener('change', () => { $('live-custom').hidden = $('live-size').value !== 'custom'; });
+  $('live-width').value = settings.liveCustom.width;
+  $('live-height').value = settings.liveCustom.height;
+  fillLiveSizes(true);
+  $('live-size').addEventListener('change', () => {
+    $('live-custom').hidden = $('live-size').value !== 'custom';
+    settings.liveSize = $('live-size').value;
+    saveSettings();
+  });
+  for (const id of ['live-width', 'live-height'])
+    $(id).addEventListener('change', () => {
+      settings.liveCustom = { width: Number($('live-width').value), height: Number($('live-height').value) };
+      saveSettings();
+    });
+  if ([...$('recording-encoder').options].some((o) => o.value === settings.recordingEncoder))
+    $('recording-encoder').value = settings.recordingEncoder;
+  $('recording-encoder').addEventListener('change', () => {
+    settings.recordingEncoder = $('recording-encoder').value;
+    saveSettings();
+  });
   $('go-live').addEventListener('click', async () => {
     if (live.state === 'recording') await live.stop();
     else {
@@ -1557,14 +1616,38 @@ function bindMatrixControls() {
         ? [Number($('live-width').value), Number($('live-height').value)]
         : $('live-size').value.split('x').map(Number);
       if (audio.context) await audio.context.resume().catch(() => {});
-      await live.start($('preview'), audio.stream, 'software', { outWidth, outHeight });
+      videoCanvas.resize(settings.width, settings.height);
+      await live.start(videoCanvas.canvas, audio.stream, 'software', { outWidth, outHeight });
     }
   });
-  fetch('/api/live').then((response) => response.json()).then(({ available }) => {
+  const checkLive = () => fetch('/api/live').then((response) => response.json()).then(({ available, hint }) => {
     liveAvailable = available;
-    if (!available) $('live-status').textContent = 'Set YOUTUBE_STREAM_KEY to go live';
+    if (!available && !live.busy) $('live-status').textContent = hint ?? 'Set YOUTUBE_STREAM_KEY to go live';
     syncCaptureControls();
   }).catch(() => {});
+  checkLive();
+  // The desktop app's place for the stream key (#8, MVP): the key goes once to the
+  // app's main process, which keeps it in the OS's secure store; the page cannot
+  // read it back. Only the app has window.matrixprismKey.
+  const keyApi = window.matrixprismKey;
+  if (keyApi) {
+    const showKey = async () => {
+      const { source } = await keyApi.status();
+      $('live-key').hidden = source === 'environment';
+      $('live-key-clear').hidden = !source;
+      $('live-key-input').placeholder = source ? 'Stream key (set)' : 'Stream key';
+    };
+    $('live-key-save').addEventListener('click', async () => {
+      const key = $('live-key-input').value.trim();
+      $('live-key-input').value = '';
+      if (key) $('live-status').textContent = (await keyApi.set(key)).message;
+    });
+    $('live-key-clear').addEventListener('click', async () => {
+      $('live-status').textContent = (await keyApi.clear()).message;
+    });
+    keyApi.onChange(() => { checkLive(); showKey(); });
+    showKey();
+  }
   $('stream').addEventListener('click', () => {
     if (link.streaming || link.pendingStart)
       stopStreaming(settings.blackOnStop);
@@ -1716,6 +1799,7 @@ function bindLookControls() {
   bindRange('speed', 'speed', (v) => `${v.toFixed(2)}×`);
   bindRange('hue', 'hue', (v) => `${Math.round(v * 360)}°`);
   bindRange('fps', 'fps', (v) => `${v} fps`);
+  bindRange('video-gamma', 'videoGamma', (v) => v.toFixed(2));
 }
 
 function bindPatternControls() {
@@ -1941,7 +2025,13 @@ function bindMonitorControls() {
   $('monitor-use').addEventListener('click', useNudgedTempo);
   $('monitor-send').addEventListener('click', sendNudgeToTracker);
   showNudge();
-  $('monitor-record').addEventListener('change', () => monitor.setRecording($('monitor-record').checked));
+  $('monitor-record').checked = settings.monitorRecord;
+  monitor.setRecording(settings.monitorRecord);
+  $('monitor-record').addEventListener('change', () => {
+    monitor.setRecording($('monitor-record').checked);
+    settings.monitorRecord = $('monitor-record').checked;
+    saveSettings();
+  });
   $('monitor-clear').addEventListener('click', () => monitor.clearLog());
   $('monitor-download').addEventListener('click', () => {
     const link = document.createElement('a');
@@ -2476,6 +2566,7 @@ function tick(now) {
     if (live.busy) live.fail(error);
     return;
   }
+  if (recording.busy || live.busy) videoCanvas.draw(frame, settings.width, settings.height, settings.videoGamma);
   recording.frame(audio.stream);
   live.frame(audio.stream);
   view.rendered += 1;

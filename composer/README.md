@@ -28,20 +28,33 @@ command path. Recording is local-only, even if the UI is served to the LAN.
   bar. Hardware uses VideoToolbox with software fallback disabled.
 3. Press Record, change patterns/mixes as usual, then Stop recording.
   DDP streaming can be off; receiver limits do not limit recording.
-4. Wait for Saved. The status shows the server-local MP4 path; Download MP4
+4. Video gamma, in the same bar, lifts the dark levels of the video so that
+  on a screen it looks as the panel does: the panel shows the levels it is
+  sent much brighter than a screen does. 2.2 (the default) matches a screen
+  to the panel; 1 records the panel's levels as sent. The panel and the
+  preview are unchanged, and Go live uses it too.
+5. Wait for Saved. The status shows the server-local MP4 path; Download MP4
   retrieves a copy. Output defaults to `~/Movies/MatrixPrism/preview-*/`;
   set server `--record-dir <directory>` to change it.
 
 ### Going live
 
 Go live, in the same bar, sends the preview and the live audio input to
-YouTube as it runs, enlarged to a Size you choose (1280×720 by default, or a
-custom width and height). Nothing is saved. The stream key comes from the
+YouTube as it runs, enlarged to a Size you choose: whole multiples of the
+panel in its own shape (for 256×192, 512×384 to 1280×960; 1024×768 by
+default), or a custom width and height. Pixels are square and there are no
+black bars: YouTube frames a picture that is not 16:9 itself. The bitrate is
+constant, set by the size from YouTube's live encoder guidance (750 kbps for
+the smallest sizes, 3 Mbps up to 720p, 5 Mbps up to 1080p). Nothing is saved. The stream key comes from the
 server's environment, never the page: copy it from YouTube Studio (Go live,
 Stream) and start the composer with
 `YOUTUBE_STREAM_KEY=<key> node server.js`. Without it Go live is disabled and
-says so. Use a private or unlisted stream to try it, and reset the key in
-Studio if it is ever shared. Press Stop live to end it. `--live-ingest` names
+says so. The desktop app has a Stream key field beside Go live instead: the
+key goes to the app's main process, which keeps it in the computer's secure
+store (the Keychain on macOS, DPAPI on Windows, a keyring or wallet on Linux;
+with none on Linux it is kept only until the app quits), and the page cannot
+read it back. `YOUTUBE_STREAM_KEY`, when set, still wins. Use a private or
+unlisted stream to try it, and reset the key in Studio if it is ever shared. Press Stop live to end it. `--live-ingest` names
 another RTMP address, for testing against a local receiver.
 
 `node tools/stream-out.mjs --size 1280x720 --to out.mp4` makes an enlarged

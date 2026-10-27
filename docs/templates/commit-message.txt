@@ -1,0 +1,20 @@
+
+
+# Subject above: what changed, in the imperative, under about 72 characters,
+# with the task number if there is one, e.g. "Lift recordings ... (T67)".
+#
+# Body: why, and what changed, in a few lines.
+#
+# Every commit carries a test plan, so whoever reads the history later can
+# try the change. For a commit with nothing to try (notes, docs), one line:
+#   Test plan: none, notes only.
+#
+# Test plan
+#   What:      the behaviour being tested
+#   How:       the steps, with the exact command, view or click
+#   Expected:  what should be seen if it works
+# Checks: the checks run and their result, e.g. npm test (404 pass),
+#   npm run check-video-gamma pass
+# Not covered: what no check here can see (Safari, the panel, real audio, ...)
+#
+# Lines starting with # are left out of the commit.
