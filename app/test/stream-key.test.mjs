@@ -31,7 +31,10 @@ test('a saved key comes back after a restart and is not in the file as written',
   await new StreamKeyStore({ safeStorage, directory, env: {} }).save(KEY);
   const file = fs.readFileSync(path.join(directory, 'stream-key.enc'));
   assert.ok(!file.toString().includes(KEY));
-  assert.equal(fs.statSync(path.join(directory, 'stream-key.enc')).mode & 0o777, 0o600);
+  // Only the account that saved it may read it, where the system has Unix permissions; Windows has
+  // none to set (it reports 0666), and protects the key by DPAPI's encryption alone.
+  if (process.platform !== 'win32')
+    assert.equal(fs.statSync(path.join(directory, 'stream-key.enc')).mode & 0o777, 0o600);
   assert.equal(await new StreamKeyStore({ safeStorage, directory, env: {} }).load(), KEY);
 });
 

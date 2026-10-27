@@ -42,6 +42,14 @@ try {
   ws.close();
   result.count = result.search.body?.receivers?.length ?? null;
   exitCode = result.search.status === 200 && Array.isArray(result.search.body?.receivers) ? 0 : 1;
+  // On a CI runner's macOS (MATRIXPRISM_CI=1) multicast needs Local Network access,
+  // which no one is there to grant: the send fails with EHOSTUNREACH (Apple, TN3179).
+  // That is reported as not checkable there, not passed; anywhere else it fails.
+  if (exitCode && process.env.MATRIXPRISM_CI === '1' && process.platform === 'darwin' &&
+      /EHOSTUNREACH/.test(result.search.body?.error ?? '')) {
+    result.notCheckable = 'macOS Local Network permission cannot be granted on a CI runner';
+    exitCode = 0;
+  }
 } catch (error) {
   result.error = error.stack;
 } finally {
