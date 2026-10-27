@@ -22,6 +22,7 @@ It is the licence that works with everything included here:
 | Pendulum Wave's source | CC0 1.0 | Public domain dedication |
 | Essentia.js | AGPL-3.0 | GPL-3.0 §13 allows combining with AGPL-3.0 code; that part keeps its own terms, including offering the source to users of a served copy |
 | Table Mark Estes | Apache-2.0 | Permissive, and compatible with GPL-3.0 one way: Apache-2.0 code may be included in a GPL-3.0 work, keeping its licence and notices. The directory stays Apache-2.0 |
+| Exo 2, a font used only to draw the README artwork | SIL OFL 1.1 | A font may be bundled with any software, keeping its licence; it is not sold on its own |
 
 ## Where the project began
 
@@ -52,6 +53,7 @@ file records the exact upstream revision that was read.
 | [Essentia.js](https://mtg.github.io/essentia.js/) 0.1.3 | Music Technology Group, Universitat Pompeu Fabra | AGPL-3.0 | `composer/public/vendor/essentia/`, unchanged from the npm package, with its `LICENSE` and a `NOTICE.md` giving checksums. Loaded only when **Beat from** is set to Essentia, and by the measuring tools. Under AGPL-3.0 §13 the source of a served copy must be offered to its users; this repository is that source |
 | [Meyda](https://meyda.js.org/) 5.6.3 | Hugh A. Rawlinson, Nevo Segal, Jakub Fiala and contributors | MIT | `composer/tools/vendor/meyda/`, with its `LICENSE.md`. Used only by the audio comparison tools, never by the composer |
 | [ws](https://github.com/websockets/ws) | Einar Otto Stangvik, Arnout Kazemier, Luigi Pinca and contributors | MIT | The composer server's WebSocket: 8.22.0, unchanged from the npm package, in `composer/lib/vendor/ws/` with its `LICENSE` and a `NOTICE.md` giving checksums |
+| [Exo 2](https://github.com/googlefonts/Exo-2.0), a font | Natanael Gama and the Exo 2 Project Authors | SIL OFL 1.1 (no Reserved Font Name) | `docs/media/src/fonts/`: the Latin subset of the variable font as Google Fonts serves it (v26, WOFF2), with its `OFL.txt`. Used only to draw the README artwork in `docs/media/`, never by the composer |
 
 ## Algorithms and ideas written here from their published descriptions
 

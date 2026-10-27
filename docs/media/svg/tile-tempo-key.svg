@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Tempo &amp; key: Beat, BPM, Camelot key</title>
+  <style>@font-face{font-family:'Exo 2';src:url('../src/fonts/Exo2-latin.woff2') format('woff2');font-weight:300 800}text{font-family:'Exo 2','Avenir Next','Segoe UI',sans-serif}</style>
+  <defs>
+  <filter id="t-glow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="t-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
+  <pattern id="t-leds" width="8" height="8" patternUnits="userSpaceOnUse">
+    <rect x="1.5" y="1.5" width="5" height="5" rx="1.4" fill="#1a1f47"/>
+  </pattern>
+  <linearGradient id="t-ground" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#06071a"/><stop offset="1" stop-color="#120a2e"/>
+  </linearGradient>
+    <radialGradient id="t-halo" cx="0.5" cy="0.42" r="0.5">
+      <stop offset="0" stop-color="#9b7bff" stop-opacity="0.22"/><stop offset="1" stop-color="#9b7bff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  
+  <linearGradient id="t-edge" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#9b7bff"/><stop offset="1" stop-color="#9b7bff"/>
+  </linearGradient>
+  <clipPath id="t-clip"><rect x="12" y="12" width="232" height="232" rx="34"/></clipPath>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="url(#t-ground)"/>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="url(#t-leds)" opacity="0.75"/>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="url(#t-halo)"/>
+  <g filter="url(#t-glow)"><g transform="translate(73 40) scale(1.1)"><path d="M40.1 7.1 A44 44 0 0 1 59.9 7.1 L56.7 20.8 A30 30 0 0 0 43.3 20.8 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M62.9 7.9 A44 44 0 0 1 80 17.8 L70.5 28.1 A30 30 0 0 0 58.8 21.3 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M82.2 20 A44 44 0 0 1 92.1 37.1 L78.7 41.2 A30 30 0 0 0 71.9 29.5 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M92.9 40.1 A44 44 0 0 1 92.9 59.9 L79.2 56.7 A30 30 0 0 0 79.2 43.3 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M92.1 62.9 A44 44 0 0 1 82.2 80 L71.9 70.5 A30 30 0 0 0 78.7 58.8 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M80 82.2 A44 44 0 0 1 62.9 92.1 L58.8 78.7 A30 30 0 0 0 70.5 71.9 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M59.9 92.9 A44 44 0 0 1 40.1 92.9 L43.3 79.2 A30 30 0 0 0 56.7 79.2 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M37.1 92.1 A44 44 0 0 1 20 82.2 L29.5 71.9 A30 30 0 0 0 41.2 78.7 Z" fill="#9b7bff" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="1"/><path d="M17.8 80 A44 44 0 0 1 7.9 62.9 L21.3 58.8 A30 30 0 0 0 28.1 70.5 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M7.1 59.9 A44 44 0 0 1 7.1 40.1 L20.8 43.3 A30 30 0 0 0 20.8 56.7 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M7.9 37.1 A44 44 0 0 1 17.8 20 L28.1 29.5 A30 30 0 0 0 21.3 41.2 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><path d="M20 17.8 A44 44 0 0 1 37.1 7.9 L41.2 21.3 A30 30 0 0 0 29.5 28.1 Z" fill="none" stroke="#9b7bff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/><text x="50" y="58" font-size="22" font-weight="700" fill="#9b7bff" text-anchor="middle">8A</text></g></g>
+  <text x="128" y="190" font-size="21" font-weight="600" fill="#eef4ff" text-anchor="middle" letter-spacing="2">TEMPO &amp; KEY</text>
+  <text x="128" y="214" font-size="14.5" font-weight="400" fill="#b9c6e8" text-anchor="middle" letter-spacing="0.3">Beat, BPM, Camelot key</text>
+  
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="none" stroke="url(#t-edge)" stroke-width="6" opacity="0.35" filter="url(#t-soft)"/>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="none" stroke="url(#t-edge)" stroke-width="3"/>
+</svg>

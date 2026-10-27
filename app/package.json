@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "MatrixPrism: music visualizer for LED matrix panels, in its own window",
+  "homepage": "https://github.com/AnjinMeili/matrixprism",
   "author": { "name": "Anjin", "email": "anjin@skyhighatry.com" },
   "license": "GPL-3.0-only",
   "type": "module",
@@ -12,7 +13,9 @@
     "test": "node --test test/",
     "start": "electron .",
     "stage": "node tools/stage.mjs",
-    "dist:mac": "node tools/stage.mjs && electron-builder --config electron-builder.yml --mac dmg --arm64 --publish never"
+    "dist:mac": "node tools/stage.mjs && electron-builder --config electron-builder.yml --mac dmg --arm64 --publish never",
+    "dist:win": "node tools/stage.mjs && electron-builder --config electron-builder.yml --win nsis --x64 --publish never",
+    "dist:linux": "node tools/stage.mjs && electron-builder --config electron-builder.yml --linux deb AppImage --publish never"
   },
   "devDependencies": {
     "electron": "45.0.0",

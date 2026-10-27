@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pattern gallery</title>
+<style>
+@font-face { font-family: 'Exo 2'; src: url('fonts/Exo2-latin.woff2') format('woff2'); font-weight: 300 800; }
+html, body { margin: 0; background: transparent; }
+body { width: 1280px; height: 676px; font-family: 'Exo 2', sans-serif; }
+.frame { position: absolute; inset: 12px; border-radius: 26px; overflow: hidden;
+  background: radial-gradient(circle at 1.5px 1.5px, #1a1f47 1.5px, transparent 2px) 0 0 / 10px 10px,
+    linear-gradient(135deg, #06071a, #120a2e);
+  box-shadow: 0 0 0 2.5px #9b7bff, 0 0 8px 0 rgba(155, 123, 255, 0.5); }
+.grid { position: absolute; left: 38px; top: 28px; display: grid; grid-template-columns: repeat(4, 280px); gap: 22px 20px; }
+figure { margin: 0; padding: 12px 12px 10px; border-radius: 16px; background: rgba(7, 8, 24, 0.85);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 12px 0 var(--accent); }
+.shot { width: 256px; height: 192px; border-radius: 6px; background-repeat: no-repeat; image-rendering: pixelated; }
+figcaption { display: flex; flex-direction: column; padding-top: 8px; color: #eef4ff; }
+figcaption b { font-weight: 600; font-size: 19px; letter-spacing: 0.3px; }
+figcaption span { font-size: 13.5px; color: #b9c6e8; letter-spacing: 0.3px; }
+.note { position: absolute; left: 0; right: 0; text-align: center; bottom: 24px; font-size: 14px; color: #b9c6e8; letter-spacing: 0.4px; }
+</style>
+<div class="frame">
+  <div class="grid">
+<figure style="--accent:#4dff9e">
+      <div class="shot" style="background-image:url('../patterns/spectrum-lab.png');background-position:-4px -4px"></div>
+      <figcaption><b>Spectrum Lab</b><span>Spectrum analyser</span></figcaption>
+    </figure>
+<figure style="--accent:#2ee6ff">
+      <div class="shot" style="background-image:url('../patterns/aurora-curtains.png');background-position:-524px -4px"></div>
+      <figcaption><b>Aurora Curtains</b><span>Shader</span></figcaption>
+    </figure>
+<figure style="--accent:#ff5c8a">
+      <div class="shot" style="background-image:url('../patterns/fire-2d.png');background-position:-4px -4px"></div>
+      <figcaption><b>Fire</b><span>After FastLED’s Fire2012</span></figcaption>
+    </figure>
+<figure style="--accent:#ff4fd8">
+      <div class="shot" style="background-image:url('../patterns/kaleido.png');background-position:-264px -200px"></div>
+      <figcaption><b>Kaleidoscope</b><span>Shader</span></figcaption>
+    </figure>
+<figure style="--accent:#4d8dff">
+      <div class="shot" style="background-image:url('../patterns/aurora-flowfield.png');background-position:-784px -4px"></div>
+      <figcaption><b>Aurora Flow Field</b><span>Aurora port</span></figcaption>
+    </figure>
+<figure style="--accent:#9b7bff">
+      <div class="shot" style="background-image:url('../patterns/auroradrop-show.png');background-position:-4px -4px"></div>
+      <figcaption><b>AuroraDrop Show</b><span>AuroraDrop port</span></figcaption>
+    </figure>
+<figure style="--accent:#4dff9e">
+      <div class="shot" style="background-image:url('../patterns/fibonacci-bloom.png');background-position:-4px -200px"></div>
+      <figcaption><b>Fibonacci Bloom</b><span>Fibonacci128 adaptation</span></figcaption>
+    </figure>
+<figure style="--accent:#ff4fd8">
+      <div class="shot" style="background-image:url('../patterns/tme-67.png');background-position:-264px -4px"></div>
+      <figcaption><b>Hypno Spiral II</b><span>Table Mark Estes port</span></figcaption>
+    </figure>
+  </div>
+  <div class="note">Single frames drawn by the composer’s own renderer at 256×192, on its simulated audio (composer/tools/pattern-frames.mjs).</div>
+</div>

@@ -33,3 +33,27 @@ mac:
       - _wled._tcp
 dmg:
   title: MatrixPrism ${version}
+# Windows and Linux (#13, #14): built on their own platforms by the release
+# workflow (.github/workflows/release.yml), unsigned for now.
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup-${arch}.${ext}
+linux:
+  icon: build/icon.png
+  executableName: matrixprism
+  category: AudioVideo
+  synopsis: Music visualizer for LED matrix panels
+  target:
+    - target: deb
+    - target: AppImage
+deb:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+appImage:
+  artifactName: ${productName}-${version}-${arch}.${ext}

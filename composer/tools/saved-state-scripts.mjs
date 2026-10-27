@@ -69,7 +69,8 @@ export function compare(defaults, set, back) {
   }
   const told = rows.filter((r) => r.changedFromDefault);
   const lost = told.filter((r) => r.result !== 'kept');
-  const out = (v) => String(v).replace(/\|/g, '\\|').slice(0, 40);
+  // Backslashes first, then the table's own bar, so a cell cannot end early.
+  const out = (v) => String(v).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').slice(0, 40);
   const table = ['| Control | Label | Type | Shown | Set to | After | Result |', '| --- | --- | --- | --- | --- | --- | --- |',
     ...told.sort((a, b) => (a.result === 'kept') - (b.result === 'kept') || a.key.localeCompare(b.key))
       .map((r) => `| \`${r.key}\` | ${out(r.label)} | ${r.type} | ${r.shown ? 'yes' : 'no'} | ${out(r.set)} | ${out(r.after)} | ${r.result} |`)];

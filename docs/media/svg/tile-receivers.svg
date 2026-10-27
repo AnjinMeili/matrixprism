@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Receivers · DDP: WLED or matrix-dmx</title>
+  <style>@font-face{font-family:'Exo 2';src:url('../src/fonts/Exo2-latin.woff2') format('woff2');font-weight:300 800}text{font-family:'Exo 2','Avenir Next','Segoe UI',sans-serif}</style>
+  <defs>
+  <filter id="t-glow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="t-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
+  <pattern id="t-leds" width="8" height="8" patternUnits="userSpaceOnUse">
+    <rect x="1.5" y="1.5" width="5" height="5" rx="1.4" fill="#1a1f47"/>
+  </pattern>
+  <linearGradient id="t-ground" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#06071a"/><stop offset="1" stop-color="#120a2e"/>
+  </linearGradient>
+    <radialGradient id="t-halo" cx="0.5" cy="0.42" r="0.5">
+      <stop offset="0" stop-color="#2ee6ff" stop-opacity="0.22"/><stop offset="1" stop-color="#2ee6ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  
+  <linearGradient id="t-edge" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#2ee6ff"/><stop offset="1" stop-color="#2ee6ff"/>
+  </linearGradient>
+  <clipPath id="t-clip"><rect x="12" y="12" width="232" height="232" rx="34"/></clipPath>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="url(#t-ground)"/>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="url(#t-leds)" opacity="0.75"/>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="url(#t-halo)"/>
+  <g filter="url(#t-glow)"><g transform="translate(73 40) scale(1.1)"><path d="M38.8 21.6 A14 14 0 0 0 61.2 21.6" transform="rotate(180 50 21.8)" fill="none" stroke="#2ee6ff" stroke-width="4" stroke-linecap="round"/><path d="M29.2 14.4 A26 26 0 0 0 70.8 14.4" transform="rotate(180 50 18.2)" fill="none" stroke="#2ee6ff" stroke-width="4" stroke-linecap="round"/><path d="M50 30 V44" stroke="#2ee6ff" stroke-width="4" stroke-linecap="round"/><rect x="10" y="46" width="80" height="46" rx="7" fill="none" stroke="#2ee6ff" stroke-width="4"/><rect x="20" y="54" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="1"/><rect x="31.5" y="54" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="43" y="54" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="54.5" y="54" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="1"/><rect x="66" y="54" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="77.5" y="54" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="20" y="65" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="31.5" y="65" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="43" y="65" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="1"/><rect x="54.5" y="65" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="66" y="65" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="77.5" y="65" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="1"/><rect x="20" y="76" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="31.5" y="76" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="1"/><rect x="43" y="76" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="54.5" y="76" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/><rect x="66" y="76" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="1"/><rect x="77.5" y="76" width="7" height="7" rx="1.5" fill="#2ee6ff" opacity="0.4"/></g></g>
+  <text x="128" y="190" font-size="21" font-weight="600" fill="#eef4ff" text-anchor="middle" letter-spacing="2">RECEIVERS · DDP</text>
+  <text x="128" y="214" font-size="14.5" font-weight="400" fill="#b9c6e8" text-anchor="middle" letter-spacing="0.3">WLED or matrix-dmx</text>
+  
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="none" stroke="url(#t-edge)" stroke-width="6" opacity="0.35" filter="url(#t-soft)"/>
+  <rect x="12" y="12" width="232" height="232" rx="34" fill="none" stroke="url(#t-edge)" stroke-width="3"/>
+</svg>

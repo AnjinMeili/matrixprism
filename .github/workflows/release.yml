@@ -1,0 +1,164 @@
+# Builds a release of the desktop app (#13): started by hand, never on a push,
+# a tag or a pull request, and gating nothing. Each platform is built on its own
+# runner, tested there, and the files go to a DRAFT release, which nobody else
+# sees until the maintainer has tried it and pressed Publish. See
+# docs/releasing.md for when to run it (all of the milestone's stories closed).
+#
+# Unsigned for now: macOS signing waits for the Apple Developer account, Windows
+# for the SignPath Foundation. Actions are pinned to full commit hashes, the
+# version in each comment; a newer one is a deliberate edit.
+name: Build release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, as in app/package.json (for example 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            os: macos-26
+            dist: dist:mac
+            app: app/dist/mac-arm64/MatrixPrism.app/Contents/MacOS/MatrixPrism
+            files: app/dist/*.dmg
+          - name: windows-x64
+            os: windows-2025
+            dist: dist:win
+            app: app/dist/win-unpacked/MatrixPrism.exe
+            files: app/dist/*-setup-*.exe
+          - name: linux-x64
+            os: ubuntu-24.04
+            dist: dist:linux
+            app: app/dist/linux-unpacked/matrixprism
+            files: |
+              app/dist/*.deb
+              app/dist/*.AppImage
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            dist: dist:linux
+            app: app/dist/linux-arm64-unpacked/matrixprism
+            files: |
+              app/dist/*.deb
+              app/dist/*.AppImage
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ inputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.8.1"
+
+      - name: The version asked for is the app's
+        run: |
+          actual="$(node -p "require('./app/package.json').version")"
+          if [ "$actual" != "$VERSION" ]; then
+            echo "app/package.json says $actual, not $VERSION" >&2
+            exit 1
+          fi
+
+      - name: FFmpeg for the recording check
+        run: |
+          case "$RUNNER_OS" in
+            macOS)   brew install ffmpeg ;;
+            Linux)   sudo apt-get update && sudo apt-get install -y ffmpeg xvfb ;;
+            Windows) choco install ffmpeg -y --no-progress ;;
+          esac
+
+      - name: Composer tests
+        working-directory: composer
+        run: npm test
+
+      - name: App tests
+        working-directory: app
+        run: |
+          npm ci
+          npm test
+
+      - name: Build
+        working-directory: app
+        env:
+          MATRIX_DIST: ${{ matrix.dist }}
+        run: npm run "$MATRIX_DIST"
+
+      - name: Check the packaged app
+        working-directory: app
+        env:
+          MATRIXPRISM_ELECTRON: ${{ github.workspace }}/${{ matrix.app }}
+          MATRIXPRISM_PACKAGED: "1"
+        run: |
+          # Linux runners have no screen and no setuid sandbox for an unpacked app.
+          run() {
+            if [ "$RUNNER_OS" = Linux ]; then MATRIXPRISM_NO_SANDBOX=1 xvfb-run -a node "$@"; else node "$@"; fi
+          }
+          run check-app.mjs
+          run check-app-discovery.mjs
+          run check-app-saved-state.mjs --strict
+          run check-app-recording.mjs
+          # The stream key: a Linux runner has no keyring, where the app rightly
+          # refuses to store a key, so this runs on macOS and Windows only. The
+          # microphone check needs a microphone, which no runner has.
+          if [ "$RUNNER_OS" != Linux ]; then run check-app-key.mjs; fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Only this job writes: the draft release, and the attestations.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Draft release
+        run: |
+          gh release create "v$VERSION" dist/* \
+            --draft --target "$GITHUB_SHA" --title "MatrixPrism $VERSION" \
+            --notes "Built by the release workflow from $GITHUB_SHA. Unsigned: see the README's Quick start for what each system asks. Check a download against SHA256SUMS, or with: gh attestation verify <file> --repo $GH_REPO"

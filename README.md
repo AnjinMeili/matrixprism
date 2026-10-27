@@ -1,26 +1,35 @@
-# MatrixPrism
+<h1 align="center"><img src="docs/media/banner.png" alt="MatrixPrism: music-driven visuals for LED matrix panels" width="100%"></h1>
 
 A real-time composer of music-driven generative visuals for LED panels.
 
-MatrixPrism follows the beat, tempo, key, spectrum and section changes of
-live audio in a browser, renders patterns from them, and streams the result
-as standard DDP to an LED receiver: a [WLED](https://kno.wled.ge/) controller,
-MatrixPrism's own receiver `matrix-dmx` on a Raspberry Pi, or anything else
-that takes DDP.
+MatrixPrism is a music visualizer that mixes four generated visuals, in two
+pairs, into one RGB pixel stream for RGB LED matrix panels, sent over DDP, the
+Distributed Display Protocol that WLED speaks. [WLED](https://kno.wled.ge/) 2D
+matrix panels are discovered on the local network and sized for output
+automatically. Larger panels are supported by MatrixPrism's own receiver,
+`matrix-dmx`, which runs on a Raspberry Pi and emulates a WLED node with DDP;
+anything else that takes DDP works too. MatrixPrism identifies and tracks
+audio features in real time, and patterns use them to evolve and change with
+the beat, tempo, key, spectrum and section changes.
 
 ```
+audio input ─► MatrixPrism app ───────────────────────UDP (DDP)──► DDP receiver ─► LED panel
+               (analyse, render, split into packets)               (WLED, matrix-dmx, …)
+
+From the source, the same page runs in a browser with a small server:
 audio input ─► browser page ──WebSocket──► Node server ──UDP (DDP)──► DDP receiver ─► LED panel
-               (analyse, render)           (split into packets)       (WLED, matrix-dmx, …)
+               (analyse, render)           (split into packets)
 ```
 
-It has two parts, each in its own directory:
+It has three parts, each in its own directory:
 
 | Part | Directory | What it is |
 |------|-----------|------------|
-| **Composer** | [`composer/`](composer) | A local app for a Mac or PC. A browser page analyses audio and renders the patterns; a small Node server sends each frame to the receiver as DDP. See [composer/README.md](composer/README.md) |
+| **Desktop app** | [`app/`](app) | MatrixPrism for macOS, Windows and Linux: the composer's page in its own window, with the sending built in; only Record and Go live need FFmpeg installed beside it. See [app/README.md](app/README.md) |
+| **Composer** | [`composer/`](composer) | The page that analyses audio and renders the patterns, and the relay that sends each frame to the receiver as DDP. From the source it also runs as a browser page with a small Node server. See [composer/README.md](composer/README.md) |
 | **Receiver** | [`receiver/`](receiver) | Optional. `matrix-dmx`, which runs on a Raspberry Pi and displays Art-Net, sACN and DDP pixel data from any sender on the matrix, and records and plays back what it displays; and `scene-tool`, which edits those recordings. See [receiver/README.md](receiver/README.md) |
 
-## Receivers
+<h2 id="receivers"><img src="docs/media/header-receivers.png" alt="Receivers" width="100%"></h2>
 
 The composer streams to any receiver that takes DDP on UDP port 4048:
 
@@ -35,7 +44,7 @@ The composer streams to any receiver that takes DDP on UDP port 4048:
 - **Any other DDP receiver**: type its address and set the panel's size by
   hand.
 
-## Quick start
+<h2 id="quick-start"><img src="docs/media/header-quick-start.png" alt="Quick start" width="100%"></h2>
 
 The composer comes as a desktop app, MatrixPrism, for macOS on Apple silicon,
 Windows and Linux. Releases are built and tested by this repository's release
@@ -82,18 +91,65 @@ sudo ./matrix-dmx
 
 The READMEs of the two parts have the options and the details.
 
-## What the composer does
+<h2 id="what-the-composer-does"><img src="docs/media/header-composer.png" alt="What the composer does" width="100%"></h2>
 
-- 142 patterns: audio-reactive shaders, a configurable spectrum analyser, a
+<p align="center">
+<img src="docs/media/tile-patterns.png" alt="Patterns: 140+ at the panel's size" width="256">
+<img src="docs/media/tile-quad-mixer.png" alt="Quad mixer: A and B to Left, C and D to Right" width="256">
+<img src="docs/media/tile-tempo-key.png" alt="Tempo and key: beat, BPM, Camelot key" width="256">
+<img src="docs/media/tile-spectrum.png" alt="Spectrum: stereo spectra and bands" width="256">
+<img src="docs/media/tile-midi.png" alt="MIDI: pads for Tap and Downbeat" width="256">
+<img src="docs/media/tile-record.png" alt="Record: preview and audio to MP4" width="256">
+<img src="docs/media/tile-go-live.png" alt="Go live: to YouTube, panel-shaped" width="256">
+<img src="docs/media/tile-receivers.png" alt="Receivers over DDP: WLED or matrix-dmx" width="256">
+<img src="docs/media/tile-desktop-app.png" alt="Desktop app: macOS, Windows, Linux" width="256">
+</p>
+
+- 144 patterns: audio-reactive shaders, a configurable spectrum analyser, a
   beat graph after BpmDj, a media player for images, GIFs and video, and ports of the Aurora,
   Fibonacci128, Table Mark Estes and AuroraDrop pattern sets;
-- a two-layer mixer with crossfades and combine blends, and per-layer shapes
+- a quad mixer: inputs A and B mix to Left, C and D to Right, and the main
+  mixes Left and Right, with crossfades and blends, and per-input shapes
   and regions with hard or soft borders;
 - audio analysis with stereo spectra, beat and BPM detection, musical key,
   and detection of section changes in the music;
+- a Monitor view with the beat graph and a live Camelot key wheel, and Tap
+  and Downbeat from the keyboard or from pads on a MIDI device (Chrome and
+  Edge);
 - movement tied to the tempo, and pattern changes that can wait for a beat,
   a bar, a phrase or a change in the music;
+- sparkles over the final picture on the high-band hits;
 - playlists of saved looks, a randomizer, and clock, date and text overlays.
+
+<p><img src="docs/media/screens/mixer.png" alt="The composer's Mixer view: inputs A to D with their previews, the Left and Right pairs and the main" width="100%"></p>
+
+*The Mixer: inputs A and B on the left, C and D on the right, each with its
+preview, each pair's crossfader, and the main between them, with a look in
+use.*
+
+<p><img src="docs/media/screens/monitor.png" alt="The Monitor view: the preview, the pattern picker and the Camelot key wheel" width="100%"></p>
+
+*The Monitor: the preview at the panel's resolution, the pattern picker and
+the Key panel's Camelot wheel, here with 5A chosen on the wheel. Taken by
+`npm run check-monitor-key`, which plays a chord into Chrome's fake
+microphone.*
+
+<h2 id="patterns"><img src="docs/media/header-patterns.png" alt="Patterns" width="100%"></h2>
+
+<p><img src="docs/media/pattern-gallery.png" alt="Eight patterns: Spectrum Lab, Aurora Curtains, Fire, Kaleidoscope, Aurora Flow Field, AuroraDrop Show, Fibonacci Bloom and Hypno Spiral II" width="100%"></p>
+
+Eight of the patterns, each a frame drawn by the composer's own renderer at
+256×192 on its simulated audio. Every pattern is listed in
+[composer/README.md](composer/README.md#patterns); contact sheets of eight
+frames of each of these are in [docs/media/patterns/](docs/media/patterns).
+
+<h2 id="going-live"><img src="docs/media/header-going-live.png" alt="Going live" width="100%"></h2>
+
+**Record** saves the final preview with the live audio input as an MP4.
+**Go live**, in the same bar, sends the preview and the live audio input to
+YouTube as it runs, enlarged to whole multiples of the panel in its own
+shape. Both need FFmpeg; the details are in
+[composer/README.md](composer/README.md#recording).
 
 ## What the receiver (`matrix-dmx`) does
 
@@ -114,6 +170,7 @@ The READMEs of the two parts have the options and the details.
 | [docs/roadmap.md](docs/roadmap.md) | What works, what has and has not been checked, and what is planned |
 | [docs/findings.md](docs/findings.md) | What has been measured: colour, audio analysis, tempo, cost, recording, the panel |
 | `docs/*-plan.md` | Plans for the audio layers, audio features, a pattern editor, several panels and recording |
+| [docs/media/](docs/media/README.md) | The artwork and screenshots in this README, and how each is made |
 | [CREDITS.md](CREDITS.md) | Every source this project builds on: upstream projects, ported code, libraries, algorithms and data, with their licences |
 | `composer/public/patterns/*/NOTICE.md` | Provenance and licence position of the ported pattern sets |
 | [AGENTS.md](AGENTS.md) | Instructions for AI coding agents: which skills to load, how to verify, and the working rules. `CLAUDE.md` imports it |

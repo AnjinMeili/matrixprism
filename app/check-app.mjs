@@ -55,7 +55,7 @@ try {
   await new Promise((resolve) => ws.addEventListener('open', resolve));
   let id = 0;
   const pending = new Map();
-  ws.addEventListener('message', ({ data }) => { const m = JSON.parse(data); pending.get(m.id)?.(m); });
+  ws.addEventListener('message', ({ data }) => { const m = JSON.parse(data); if (pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
   const send = (method, params = {}) => new Promise((resolve) => {
     pending.set(++id, resolve);
     ws.send(JSON.stringify({ id, method, params }));
