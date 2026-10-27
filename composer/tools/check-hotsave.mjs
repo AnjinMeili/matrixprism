@@ -12,12 +12,21 @@ try {
   const r = JSON.parse(text);
   const e = r.saved.entry, b = r.restored;
   const ok = r.takenKey.shown === 'S' && /taken/.test(r.takenKey.error) &&
-    r.saved.playlist === 'Hotsave' && r.saved.entries === 1 && /^Hotsave \d\d:\d\d:\d\d$/.test(e.name) &&
-    e.patternId === 'plasma' && e.params.plasma.scale === 5.5 && e.hue === 0.4 && e.speed === 2 && e.sparkles === true &&
+    r.saved.playlist === 'Hotsave' && r.saved.entries === 1 && /^Hotsave \d\d:\d\d:\d\d \(Left, on air\)$/.test(e.name) &&
+    e.version === 2 && e.scope === 'pair' &&
+    e.patternId === 'plasma' && e.params.scale === 5.5 && e.hue === 0.4 && e.speed === 2 && e.sparkles === true &&
     /Hotsaved/.test(r.notice) &&
     b.patternId === 'plasma' && b.scale === 5.5 && b.hue === 0.4 && b.speed === 2 && b.sparkles === true &&
     b.controls.scale === '5.5' && b.controls.hue === '0.4' && b.controls.hueShown === '144°' &&
-    b.controls.speed === '2' && b.controls.sparkles === true && r.second === 2;
+    b.controls.speed === '2' && b.controls.sparkles === true && r.second === 2 &&
+    // Pairs (T73).
+    r.intoRightOffAir.c === 'plasma' && r.intoRightOffAir.cScale === 5.5 && r.intoRightOffAir.a &&
+    r.intoRightOffAir.main === 0 && r.intoRightOffAir.hue === 0.1 && r.intoRightOffAir.notice &&
+    r.intoRightOnAir.hue === 0.4 && r.intoRightOnAir.main === 1 &&
+    /\(Right, on air\)$/.test(r.savedRight.name) && r.savedRight.scope === 'pair' &&
+    r.savedRight.first === r.savedRight.c && r.savedRight.second === r.savedRight.d &&
+    /\(whole quad\)$/.test(r.savedQuad.name) && r.savedQuad.scope === 'quad' && r.savedQuad.inputs === 'abcd' &&
+    r.quadBack.same && r.quadBack.main === 0.3;
   console.log(ok ? 'ok' : 'FAILED');
   process.exit(ok ? 0 : 1);
 } catch (error) {

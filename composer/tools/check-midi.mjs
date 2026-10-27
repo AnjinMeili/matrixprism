@@ -15,6 +15,8 @@ try {
   const ok = /Listening to Test Pad/.test(r.connected.status) && r.connected.connectHidden === true &&
     r.learnedTap.binding === 'Note 38 (D2), channel 10' && r.learnedDownbeat.binding === 'Note 36 (C2), channel 10' &&
     r.stored.bindings.tap.number === 38 && r.stored.bindings.downbeat.number === 36 &&
+    JSON.stringify(r.cueRows) === JSON.stringify(['Cue list: Go pad', 'Cue list: Next pad', 'Cue list: Back pad', 'Cue list: Hold pad']) &&
+    r.learnedCueNext.binding === 'Note 40 (E2), channel 10' && r.stored.bindings.cueNext.number === 40 &&
     r.tempo.mode === 'manual' && Math.abs(r.tempo.bpm - 120) < 0.5 && r.error === '' && /^Downbeat pressed/.test(r.button) && /^Downbeat pressed/.test(r.key) && /^Tap pressed/.test(r.tapButton) && /^Downbeat pressed/.test(r.note) && r.dots.total === 4 && r.dots.lit === 1 &&
     r.forgotten.shown === 'Not set' && r.forgotten.stored === null;
   console.log(ok ? 'ok' : 'FAILED');

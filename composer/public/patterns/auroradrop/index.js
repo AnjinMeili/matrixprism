@@ -2,6 +2,7 @@
 import { AuroraDropAnimation } from './runtime.js';
 import { EFFECTS } from './effects.js';
 import { AUDIO_PATTERNS } from './audio-patterns.js';
+import { VARIATION_PARAM } from '../../seed.js';
 
 export const AURORADROP_GROUP = 'AuroraDrop';
 
@@ -14,6 +15,7 @@ const entry = (id, name, description, spec) => ({
   // With no audio at all most of these draw nothing.
   needsAudio: true,
   controls: [],
+  params: [VARIATION_PARAM],
   createInstance: (width, height, random = Math.random) =>
     new AuroraDropAnimation(spec, width, height, random),
 });

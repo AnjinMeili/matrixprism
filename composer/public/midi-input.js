@@ -14,6 +14,11 @@
 export const MIDI_ACTIONS = [
   { id: 'downbeat', label: 'Downbeat', help: 'Mark this moment as the first beat of the bar; the tempo stays the tracker\'s' },
   { id: 'tap', label: 'Tap', help: 'Tap the tempo, as the T key does' },
+  // A cue list (T76), for a pad on the DJ's controller or the VJ's.
+  { id: 'cueGo', label: 'Cue list: Go', help: 'Start the cue list chosen in the Playlist view on this downbeat, its first' },
+  { id: 'cueNext', label: 'Cue list: Next', help: 'The next cue, on the next bar line' },
+  { id: 'cueBack', label: 'Cue list: Back', help: 'The cue before, on the next bar line' },
+  { id: 'cueHold', label: 'Cue list: Hold', help: 'Stop the cue list where it is, as when the DJ loops; press again to go on' },
 ];
 
 export const MIDI_DEFAULTS = { bindings: {} };

@@ -3,8 +3,9 @@
 <title>Pattern settings check</title>
 <!-- Loaded by tools/check-param-controls.mjs in headless Chrome. Builds the
      Pattern settings controls (param-controls.js) for a pattern with each
-     kind of parameter, changes each control as a person would, and reports
-     what was saved. -->
+     kind of parameter, changes each control as a person would, including a
+     number's Follows and Amount (#21), and a Variation's Keep, New, Back and
+     Return (T72), and reports what was saved. -->
 <div id="fields"></div>
 <pre id="out">running</pre>
 <script type="module">
@@ -35,15 +36,70 @@ try {
   $('param-demo-grid').dispatchEvent(new Event('change'));
   $('param-demo-mode').value = 'b';
   $('param-demo-mode').dispatchEvent(new Event('change'));
+  // Follows: Amount is disabled while the source is Off.
+  result.followStart = { source: $('param-demo-scale-follow').value, amountDisabled: $('param-demo-scale-amount').disabled };
+  $('param-demo-scale-follow').value = 'lows';
+  $('param-demo-scale-follow').dispatchEvent(new Event('change'));
+  $('param-demo-scale-amount').value = '-0.3';
+  $('param-demo-scale-amount').dispatchEvent(new Event('input'));
+  result.followShown = { amountDisabled: $('param-demo-scale-amount').disabled,
+    percent: $('param-demo-scale-amount').nextElementSibling.textContent };
   fields.querySelector('button').click();
   result.saved = saved;
-  result.afterReset = { scale: $('param-demo-scale').value, grid: $('param-demo-grid').checked, mode: $('param-demo-mode').value };
+  result.afterReset = { scale: $('param-demo-scale').value, grid: $('param-demo-grid').checked, mode: $('param-demo-mode').value,
+    follow: $('param-demo-scale-follow').value, amount: $('param-demo-scale-amount').value };
+  // Built from saved settings with a follow, the controls show it.
+  const again = document.createElement('div');
+  buildParamControls(again, pattern, { follows: { scale: { source: 'key', amount: 0.25 } } }, () => {}, '', false);
+  result.fromSaved = { follow: again.querySelector('#param-demo-scale-follow').value,
+    amount: again.querySelector('#param-demo-scale-amount').value };
+  // A Variation (T72), with hooks standing in for the page: the seed on
+  // screen is 4242 and the one before it 4141.
+  const dice = { id: 'dice', params: [{ id: 'variation', name: 'Variation', type: 'variation', default: 0 }] };
+  const box = document.createElement('div');
+  const diceSaved = [], used = [], calls = [];
+  let onScreen = 4242;
+  const hooks = {
+    current: () => onScreen,
+    use: (seed) => { used.push(seed); onScreen = seed; },
+    back: () => 4141,
+    keep: (values) => calls.push(['keep', values.variation]),
+    canReturn: () => calls.some(([name]) => name === 'keep'),
+    returnTo: () => calls.push(['return']),
+  };
+  const controls = buildParamControls(box, dice, {}, (next) => diceSaved.push(next), '', false, hooks);
+  document.body.appendChild(box);
+  const v = (name) => box.querySelector(`#param-dice-variation${name}`);
+  result.variation = { shown: v('').textContent, keptAtStart: v('-keep').checked, returnDisabled: v('-return').disabled };
+  v('-new').click();
+  result.variation.newWhileFree = { used: used.length, saved: diceSaved.length, shown: v('').textContent === `#${used[0]}` };
+  v('-back').click();
+  result.variation.backWhileFree = { used: used[1], shown: v('').textContent };
+  v('-keep').checked = true;
+  v('-keep').dispatchEvent(new Event('change'));
+  result.variation.kept = { saved: diceSaved.at(-1), calls: calls.slice(), returnDisabled: v('-return').disabled };
+  v('-new').click();
+  result.variation.newWhileKept = { usedMore: used.length, saved: diceSaved.at(-1).variation !== 4141 && diceSaved.at(-1).variation > 0 };
+  v('-return').click();
+  result.variation.returned = calls.at(-1)[0];
+  v('-keep').checked = false;
+  v('-keep').dispatchEvent(new Event('change'));
+  result.variation.unkept = diceSaved.at(-1);
+  onScreen = 5555;
+  controls.refresh();
+  result.variation.refreshed = v('').textContent;
+  // Without hooks (the Mixer's compact strip) the row is left out.
+  const bare = document.createElement('div');
+  buildParamControls(bare, dice, {}, () => {}, '', false);
+  result.variation.withoutHooks = bare.querySelectorAll('.param-variation').length;
   // Every real pattern's controls build without an error.
   const built = document.createElement('div');
   let count = 0;
+  // A number setting has its slider, Follows and Amount; a variation its
+  // Keep box; the others one.
   for (const p of PATTERNS.filter((entry) => entry.params?.length)) {
-    buildParamControls(built, p, {}, () => {});
-    count += p.params.length;
+    buildParamControls(built, p, {}, () => {}, '', null, hooks);
+    count += p.params.reduce((sum, param) => sum + ((param.type ?? 'number') === 'number' ? 3 : 1), 0);
   }
   result.realPatterns = { controls: built.querySelectorAll('input, select').length, params: count };
   out.textContent = JSON.stringify(result, null, 1);

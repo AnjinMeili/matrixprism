@@ -151,8 +151,16 @@ label output { float: right; color: var(--muted); font-variant-numeric: tabular-
 label.check { display: flex; gap: 8px; align-items: center; }
 .param-section + .param-section { margin-top: 12px; }
 .param-heading { margin: 0 0 4px; font-weight: 600; }
+.param-follow { display: flex; align-items: center; gap: 6px; margin: -2px 0 6px; font-size: 0.85em; opacity: 0.85; }
+.param-follow label { display: flex; align-items: center; gap: 4px; margin: 0; }
+.param-follow input[type=range] { flex: 1; min-width: 60px; }
+.param-follow output { min-width: 3.5em; text-align: right; }
+.param-variation { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.param-variation output { min-width: 6.5em; font-variant-numeric: tabular-nums; }
+.param-variation label.check { margin: 0; }
+.param-variation-buttons { display: flex; gap: 6px; flex-basis: 100%; }
 
-input:not([type]), input[type="number"], input[type="text"], select {
+input:not([type]), input[type="number"], input[type="text"], input[type="search"], select {
   width: 100%;
   margin-top: 4px;
   padding: 6px 8px;
@@ -337,6 +345,9 @@ body.quad-mode #quad-view { display: block; height: calc(100vh - 62px); padding:
 .qv-params .param-section { display: contents; }
 .qv-params label { font-size: 11px; margin: 0; }
 .qv-params button { grid-column: 1 / -1; justify-self: start; }
+/* Follows (#21) is set in the full Pattern settings; the compact strip keeps
+   one cell a setting. A follow set there still drives the input here. */
+.qv-params .param-follow { display: none; }
 /* A channel's modifiers (channel-tags.js), under its name. */
 .qv-tags { display: flex; flex-wrap: wrap; gap: 4px; min-height: 18px; align-items: center; }
 /* Read in the same order on both sides; on the right, against the outer edge. */

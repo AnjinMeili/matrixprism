@@ -11,6 +11,11 @@ import { TmeAnimation } from './runtime.js';
 import * as fx from './effects.js';
 import * as audio from './audio-effects.js';
 import { confetti2, confetti4, triangler, bkstarer } from './decorations.js';
+import { TME_PARAMS } from './settings.js';
+import { VARIATION_PARAM } from '../../seed.js';
+
+// The shared settings (T71) and the variation (T72).
+const PARAMS = [...TME_PARAMS, VARIATION_PARAM];
 
 const centre = (t) => {
   t.driftx = t.MIDLX;
@@ -718,8 +723,9 @@ export const MARK_ESTES_PATTERNS = TME_PATTERNS.map((pattern) => ({
   id: `tme-${pattern.number}`,
   name: `${pattern.name} (TME ${pattern.number})`,
   group: MARK_ESTES_GROUP,
-  // These patterns have no adjustable settings of their own yet.
   controls: [],
+  // The settings every TME pattern shares (T71), on the values each run rolls.
+  params: PARAMS,
   audio: `${pattern.description} (Table Mark Estes port; ${pattern.audioReactive ?
     'follows the audio spectrum, or animates on its own in silence' : 'no audio modulation'})`,
   audioReactive: !!pattern.audioReactive,

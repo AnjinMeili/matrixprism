@@ -114,6 +114,18 @@ test('spectrum bars grow with the audio and stay centred', () => {
 });
 
 test('every pattern draws at several panel sizes and is repeatable', () => {
+  // The runtime stops catching up after 100 ms of wall time; on a loaded
+  // machine a large step can pass that and skip the rest, so the clock is
+  // held still here and repeatability depends only on the seed.
+  performance.now = () => 0;
+  try {
+    everySizeRepeatable();
+  } finally {
+    delete performance.now;
+  }
+});
+
+function everySizeRepeatable() {
   for (const [width, height] of [[64, 64], [32, 32], [256, 192], [48, 96]]) {
     for (const pattern of AURORADROP_PATTERNS) {
       const run = () => {
@@ -129,7 +141,7 @@ test('every pattern draws at several panel sizes and is repeatable', () => {
       assert.deepEqual(first, run(), `${pattern.id} is repeatable`);
     }
   }
-});
+}
 
 test('slots restart every ten seconds and the show swaps patterns', () => {
   const animation = new AuroraDropAnimation(

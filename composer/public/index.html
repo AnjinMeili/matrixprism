@@ -163,8 +163,8 @@
         <fieldset id="playlist-controls">
           <legend>Playlists</legend>
           <div id="playlist-fields"></div>
-          <p class="hint">An entry is a saved look: the layer A pattern, the mixer state (layer B's pattern, blend and amount), both layers' shape and region, each layer's Pattern settings, and the look settings: hue, speed, palette and palette cycling, key colours, flock count, dot size, Sparkles and Spectrum Lab. Set the screen up the way you want it, then use Add current look, or Hotsave below. While a playlist plays it replaces Auto cycle; changing pattern crossfades as usual, and the rest switches with it.</p>
-          <p class="hint">Brightness, gamma and frame rate are not stored, as they suit the panel rather than the look. Entries saved before 2026-10-16 keep only the patterns, mixer and shapes, and leave the rest as it is. Playlists are kept in this browser with the other settings.</p>
+          <p class="hint">An entry is a saved look of one pair, or of the whole quad, as chosen under Hotsave's Saves: each input's pattern, Pattern settings and variation, brightness, gamma, hue and shape, the pair's blend, and the look settings: hue, speed, palette and palette cycling, key colours, flock count, dot size, Sparkles and Spectrum Lab. A pair's entry loads into the pair chosen under Plays on, so a look saved on Left can come back on Right. Set the pair off air up, then blend the main across to it: a playlist never moves the main. While a playlist plays it replaces Auto cycle; changing pattern on A crossfades as usual.</p>
+          <p class="hint">Loaded into the pair off air, an entry leaves the look settings (hue, speed, palette) alone, as they would change the pair on air too. The main's brightness, gamma and frame rate are not stored, as they suit the panel rather than the look. Entries saved before the quad leave what they did not keep as it is. Playlists are kept in this browser with the other settings.</p>
         </fieldset>
 
         <fieldset id="hotsave-controls">
@@ -173,8 +173,14 @@
             <label>Key <input id="hotsave-key" type="text" maxlength="1" size="2" autocomplete="off" required></label>
             <label>Save to <select id="hotsave-playlist"></select></label>
           </div>
+          <label>Saves <select id="hotsave-scope" title="What Hotsave, Add current look and Replace with current look save">
+            <option value="onAir">The pair on air</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+            <option value="quad">The whole quad</option>
+          </select></label>
           <button id="hotsave-now" type="button">Hotsave now</button>
-          <p class="hint">Press the key anywhere on the page, except while typing in a field, to add the look on screen to a playlist as a new entry named for the time, with everything an entry keeps. It goes to a playlist called Hotsave, made on first use, unless another is chosen. Whatever is playing carries on. The key is one letter or digit; T taps the tempo.</p>
+          <p class="hint">Press the key anywhere on the page, except while typing in a field, to add the look on screen to a playlist as a new entry named for the time and what it holds, with everything an entry keeps. Saves chooses what: the pair on air (Left until the main is past half way), Left, Right, or the whole quad. It goes to a playlist called Hotsave, made on first use, unless another is chosen. Whatever is playing carries on. The key is one letter or digit; T taps the tempo.</p>
         </fieldset>
 
         <fieldset id="randomizer-controls">

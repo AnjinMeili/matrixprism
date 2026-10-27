@@ -35,13 +35,18 @@ is nothing to release.
    keyring). A platform whose checks fail gives no files.
 4. **The draft.** When all four have passed, the workflow makes a **draft**
    release `v<version>` with the files, `SHA256SUMS` and build attestations.
-   Nobody else sees a draft.
+   Nobody else sees a draft. Open it from the **Releases** page, where it is
+   marked Draft: a draft has no tag until it is published, so the address
+   `…/releases/tag/v<version>` finds nothing and offers to create a new,
+   empty release instead, which is not wanted.
 5. **Try it.** Download the file for your computer from the draft, check it
    (`shasum -a 256` against `SHA256SUMS`, or `gh attestation verify <file>
    --repo AnjinMeili/matrixprism`), install it, and go through the
    milestone's acceptance lists and the standing items in
    [templates/release-checklist.md](templates/release-checklist.md).
-6. **Publish** the draft on GitHub, or delete it and start again.
+6. **Publish**: open the draft with its Edit (pencil) button and press
+   **Publish release**; GitHub creates the tag `v<version>` then. Or delete
+   the draft and start again.
 
 ## What the workflow may do
 

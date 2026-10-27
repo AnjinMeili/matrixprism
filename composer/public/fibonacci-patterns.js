@@ -1,10 +1,12 @@
 // Native-panel adaptations of fibonacci128-touch-aurora, aurora branch
-// 5f8dd395f5a8f62d169463d125ee5b102b526611. GPL-3.0.
+// 5f8dd395f5a8f62d169463d125ee5b102b526611, and of Phyllotaxis Bloom from
+// fibonacci128-touch-demo, f128-one-inch branch. GPL-3.0.
 // Original Aurora: Jason Coon / Stefan Petrick. Sublime fire:
 // Intrinsically-Sublime, adapted by Marc MERLIN and Fibonacci128 contributors.
 // Source and licensing details: ./licenses/fibonacci.txt.
+import { VARIATION_PARAM } from './seed.js';
 import { AuroraAnimation } from './aurora-patterns.js';
-import { byte, sin8, beatsin8, inoise8 } from './aurora-fastled.js';
+import { byte, sin8, beatsin8, inoise8, scale8 } from './aurora-fastled.js';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const ARM_PAIRS = [[5, 8], [8, 13], [3, 5], [5, 13], [3, 8], [8, 21]];
@@ -179,13 +181,45 @@ class RadialFire extends AuroraAnimation {
   }
 }
 
+// phyllotaxisBloomAnimation, from PatternPhyllotaxisBloom.h in
+// fibonacci128-touch-demo, branch f128-one-inch, commit
+// 1dd4217040166e19708087867f5fa2bab6e4fc4c (GPL-3.0). Created by Claude
+// (Anthropic) for Anjin. Each point's hue steps by the golden angle (98 of
+// 256) along the Fibonacci order, and a 5-arm and an 8-arm wave, moving at
+// Fibonacci-ratio speeds, multiply into drifting bright nodes with white tips.
+// Here the point's index in the native layout stands for physicalToFibonacci.
+class PhyllotaxisBloom extends Fibonacci {
+  draw(ms) {
+    // The original sets every LED each frame: no trails.
+    this.buffer.dim(0);
+    const timeA = byte(ms / 8);
+    const timeB = byte(ms / 13);
+    const timeHue = byte(ms / 80);
+    const GOLDEN_ANGLE_8 = 98;
+    for (const point of this.points) {
+      const fibIdx = point.index;
+      const hue = byte(byte(fibIdx * GOLDEN_ANGLE_8) + timeHue);
+      const wave1 = sin8(byte(fibIdx * 5 - timeA));
+      const wave2 = sin8(byte(fibIdx * 8 + timeB));
+      // qadd8: a saturating add.
+      const bri = Math.min(255, scale8(wave1, wave2) + 15);
+      const sat = 255 - scale8(bri, 80);
+      this.dot(point, hue, bri, sat);
+    }
+  }
+}
+
 export const FIBONACCI_PATTERNS = [
   ['fibonacci-bloom', 'Fibonacci Bloom', Bloom, 'Overlapping Fibonacci arm pulses with a breathing centre'],
   ['fibonacci-chase', 'Fibonacci Chase', Chase, 'Staggered pulses chase along golden-angle spiral arms'],
   ['electric-mandala', 'Electric Mandala', Mandala, 'Mirrored drifting noise with smoothly reversing rotation'],
   ['radial-fire', 'Radial Fire', RadialFire, 'Stateful heat rises from the perimeter towards the centre'],
+  ['phyllotaxis-bloom', 'Phyllotaxis Bloom', PhyllotaxisBloom, 'Golden-angle hues with 5- and 8-arm waves meeting in drifting white-tipped nodes; created by Claude'],
 ].map(([id, name, Pattern, description]) => ({
   id, name, audio: `${description} (native Fibonacci128 adaptation; no audio modulation)`,
   controls: ['aurora'],
+  // Bloom, Chase and Phyllotaxis Bloom never draw from their random
+  // generator (measured, T72), so have no Variation to keep.
+  ...(['fibonacci-bloom', 'fibonacci-chase', 'phyllotaxis-bloom'].includes(id) ? {} : { params: [VARIATION_PARAM] }),
   createInstance: (width = 32, height = 32, random = Math.random) => new Pattern(random, width, height),
 }));

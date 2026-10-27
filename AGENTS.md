@@ -68,7 +68,9 @@ npm run check-test-card      # composer: after any change to test-card.js
 npm run check-sparkles       # composer: after any change to sparkle.js
 npm run check-essentia-live  # composer: after any change to the Essentia beat source
 npm run check-param-controls # composer: after any change to params.js or param-controls.js
-npm run check-hotsave        # composer: after any change to playlists, look.js or Hotsave
+npm run check-hotsave        # composer: after any change to playlists, look.js, Hotsave or how entries load into pairs
+npm run check-variations     # composer: after any change to seed.js, a pattern's variation, or how the renderer makes instances
+npm run check-cue-lists      # composer: after any change to cue-clock.js, cue lists or the Playlist view
 npm run check-receivers      # composer: after any change to receivers.js or the sending loop
 npm run check-midi           # composer: after any change to midi-input.js or the Monitor's MIDI controls
 npm run check-raw-spectrum   # composer: after any change to spectrum-bands.js, the raw texture or rawSpec
@@ -117,8 +119,23 @@ make -C receiver test         # receiver protocol, recording, scene tool
   would and checks what is saved and reset. It does not look at the layout.
 - `npm run check-hotsave` opens the composer in a frame in headless Chrome,
   sets a look, presses the Hotsave key, changes the look and shows the saved
-  entry, then checks the look and its controls came back. The server is not
-  running, so nothing streams; it does not cover Safari or the layout.
+  entry, then checks the look and its controls came back. Then pairs (T73):
+  an entry shown on Right while it is off air (its look settings held back)
+  and on air, Hotsave of Right and of the whole quad, and the main never
+  moved. The server is not running, so nothing streams; it does not cover
+  Safari or the layout.
+- `npm run check-variations` drives the real page in headless Chrome on
+  real time (the frame clock does not run on virtual time, so `check-hotsave`
+  never draws): a Mark Estes pattern's seed on screen is shown and saved by
+  Hotsave, New and Back step through seeds, showing the saved entry brings
+  the variation back kept, and Return comes back to it. It does not look at
+  the picture.
+- `npm run check-cue-lists` seeds a cue list for a made-up track on a
+  manual 120 BPM and drives the real page on real time. Find opens it by
+  part of the artist's name; Go starts it, and each cue lands on beat 1 of
+  its bar, 4 seconds apart. Hold stops the bar and lets it go on; Back waits
+  for the bar line. No audio is used, so it does not test the tempo
+  tracker; it does not look at the picture.
 - `npm run check-receivers` runs a fake receiver on UDP 4048, the server
   and the page in headless Chrome, and measures the frames a second and the
   brightest byte that arrive for two known receivers with different
@@ -173,7 +190,8 @@ make -C receiver test         # receiver protocol, recording, scene tool
   ffprobe and ports 19351 and 19352 free; neither uses YouTube.
 - `npm run check-saved-state` sets every control on the page to another
   value as a person would, reloads, and fails on any that comes back changed;
-  it never sets a receiver or an address. `app/check-app-saved-state.mjs`
+  it never sets a receiver or an address. A control marked `data-not-saved`
+  (a search box) is not a setting and is left out. `app/check-app-saved-state.mjs`
   does the same across a restart of the desktop app, and after a forced kill.
   Neither covers the Media Player's folder, which needs the folder dialog,
   nor the window's place, which Electron hides from DevTools.

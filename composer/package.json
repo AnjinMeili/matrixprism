@@ -1,6 +1,6 @@
 {
   "name": "matrixprism-composer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "MatrixPrism composer: generative and audio-reactive patterns streamed to matrix-dmx over DDP",
   "license": "GPL-3.0-or-later",
@@ -20,6 +20,8 @@
     "check-essentia-live": "node tools/check-essentia-live.mjs",
     "check-param-controls": "node tools/check-param-controls.mjs",
     "check-hotsave": "node tools/check-hotsave.mjs",
+    "check-variations": "node tools/check-variations.mjs",
+    "check-cue-lists": "node tools/check-cue-lists.mjs",
     "check-receivers": "node tools/check-receivers.mjs",
     "measure-quad-cost": "node tools/quad-cost.mjs",
     "check-quad-render": "node tools/check-quad-render.mjs",

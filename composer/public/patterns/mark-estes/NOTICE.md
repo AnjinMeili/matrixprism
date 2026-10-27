@@ -106,6 +106,40 @@ Differences in how the audio patterns use it:
 - **Quiet passages do not change the pattern.** The sketch moves on to the
   next pattern after a long silence; here the composer chooses patterns.
 
+## Settings added by the port (T71)
+
+The sketch has no settings; each run rolls its own values. The port adds
+nine shared settings (`settings.js`) on top of those rolls, so that the
+composer's Follows can reach these patterns. At their defaults every pattern
+draws exactly as it did before them: 282 frame hashes recorded from the code
+before the change are held in `composer/test/fixtures/tme-baseline.json`.
+
+- Speed scales the rolled frame rate; Fade scales the rolled fade amount;
+  Paleness is added to the rolled `velo`; Drift scales how far the centre
+  wanders each time it moves.
+- Colour shift is added to the hue inside `hsv()` while a pattern steps, so
+  it recolours without turning anything. The fixed fire palettes of Fat
+  Fire (150) are left alone.
+- A Mirror, Wind or Decoration other than Random replaces the rolled
+  `adjunct`, `wind` or `fancy` at the start of every step, overriding the
+  pattern's own setup and `twister()`. A fixed Mirror is also applied after
+  a pattern that did not call `adjustme()`. A fixed Fade colour turns the
+  rolled fade into a fade of that colour, with the same amount.
+- The mirrors that work in a square of the shorter side (codes 3, 6, 7, 10,
+  12) are not applied on a panel that is not square, where the sketch never
+  rolls them.
+- The wind names say which way the picture moves on screen. LEDMatrix counts
+  rows from the bottom, so its `ShiftUp` moves the composer's frame down.
+
+## Variations (T72)
+
+The composer runs each pattern from a seed (`seed.js`), so a variation can
+be kept and brought back. When it is kept, the pattern does not re-roll
+after its dwell. When it is not, a seeded run re-rolls from a new seed it
+draws, skipping the five draws the constructor makes before its first roll,
+so that a new instance from that seed rolls the same. Runs given a plain
+generator, as the tests give, re-roll as the sketch does.
+
 ## Known differences from the sketch
 
 - **Starz III (79).** The sketch draws the same star `howmany` times over

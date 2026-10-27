@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Variations check</title>
+<!-- Loaded by tools/check-variations.mjs in headless Chrome, on real time so
+     the composer's frame clock runs. Opens the composer in a frame, puts a
+     Mark Estes pattern on screen, and checks its variation (T72): the seed
+     on screen is shown, Hotsave saves it, New rolls another, showing the
+     saved entry brings the first back kept, and Return comes back to it
+     after another New; Back steps to the one before. -->
+<iframe id="app" src="/index.html" width="1200" height="900"></iframe>
+<script type="module">
+const post = (body) => fetch('/result', { method: 'POST', body });
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+try {
+  const frame = document.getElementById('app');
+  await new Promise((resolve) => frame.addEventListener('load', resolve, { once: true }));
+  const win = frame.contentWindow, doc = frame.contentDocument, $ = (id) => doc.getElementById(id);
+  for (let i = 0; i < 100 && !$('hotsave-key').value; ++i) await wait(50);
+  const press = (key) => doc.body.dispatchEvent(new win.KeyboardEvent('keydown', { key, bubbles: true }));
+  const saved = () => JSON.parse(win.localStorage.getItem('matrix-companion-settings'));
+  const shown = () => $('param-tme-14-variation')?.textContent ?? '';
+  // Waits for a seed to show, other than `not`.
+  const settled = async (not = null) => {
+    for (let i = 0; i < 80 && (!/^#\d+$/.test(shown()) || shown() === not); ++i) await wait(50);
+    return shown();
+  };
+  const result = {};
+  doc.querySelector('#patterns button[data-id="tme-14"]').click();
+  result.first = await settled();
+  press('s');
+  await wait(100);
+  const after = saved();
+  const list = after.playlists.lists.find((l) => l.id === after.hotsave.playlistId);
+  result.savedVariation = list?.entries.at(-1)?.options?.[0]?.actions?.[0]?.inputs?.[0]?.params?.variation;
+  $('param-tme-14-variation-new').click();
+  result.rolled = await settled(result.first);
+  $('param-tme-14-variation-back').click();
+  result.back = await settled(result.rolled);
+  $('param-tme-14-variation-new').click();
+  result.rolledAgain = await settled(result.first);
+  // Show the saved entry from the Playlist view.
+  const select = $('playlist-select');
+  select.value = after.hotsave.playlistId;
+  select.dispatchEvent(new win.Event('change'));
+  await wait(100);
+  [...doc.querySelectorAll(`#playlist-fields details[data-entry="${list.entries.length - 1}"] button`)]
+    .find((b) => b.textContent === 'Show now').click();
+  await wait(200);
+  result.restored = { shown: await settled(result.rolledAgain), kept: $('param-tme-14-variation-keep').checked,
+    setting: saved().patternParams['tme-14']?.variation };
+  // Kept: New saves the new seed; Return brings the loaded one back.
+  $('param-tme-14-variation-new').click();
+  result.newWhileKept = { shown: await settled(result.restored.shown), setting: saved().patternParams['tme-14']?.variation };
+  $('param-tme-14-variation-return').click();
+  await wait(200);
+  result.returned = { shown: await settled(result.newWhileKept.shown), setting: saved().patternParams['tme-14']?.variation };
+  // Keep off: the setting is cleared, and the pattern rolls freely again.
+  const keep = $('param-tme-14-variation-keep');
+  keep.checked = false;
+  keep.dispatchEvent(new win.Event('change'));
+  await wait(100);
+  result.unkept = saved().patternParams['tme-14'] ?? {};
+  await post(JSON.stringify(result, null, 1));
+} catch (error) {
+  await post(`FAIL ${error.stack}`);
+}
+</script>

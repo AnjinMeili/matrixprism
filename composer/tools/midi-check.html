@@ -34,6 +34,13 @@ try {
   };
   result.learnedTap = await learn('tap', [0x99, 38, 100]);
   result.learnedDownbeat = await learn('downbeat', [0x99, 36, 100]);
+  // The cue list's actions (T76) get rows from their own labels, and learn
+  // as the others do; a press with no cue list playing does nothing.
+  result.cueRows = ['cueGo', 'cueNext', 'cueBack', 'cueHold']
+    .map((id) => doc.querySelector(`[data-midi-row="${id}"] span`)?.textContent ?? null);
+  result.learnedCueNext = await learn('cueNext', [0x99, 40, 100]);
+  send([0x99, 40, 100], 0);
+  await wait(30);
   result.stored = saved().midi;
   // Two taps half a second apart, by the messages' own times, are 120 BPM,
   // whatever the real time between these calls. Tap by beat first.

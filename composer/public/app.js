@@ -21,7 +21,10 @@ import {
 import {
   BEAT_SOURCES, QUANTIZE, TAP_UNITS, TEMPO_DEFAULTS, TEMPO_MODES, TapTempo, changeAllowed, tempoSettings,
 } from './tempo.js';
-import { DEFAULT_SECONDS, MAX_ENTRIES, PlaylistPlayer, playlistSettings, unusedPlaylistId } from './playlist.js';
+import {
+  DEFAULT_SECONDS, ENTRY_VERSION, MAX_ENTRIES, PlaylistPlayer, entryLook, playlistSettings, unusedPlaylistId,
+} from './playlist.js';
+import { CueClock, cueBeat } from './cue-clock.js';
 import { SendLimiter, receiverKey, receiverProfile, receiverSettings } from './receivers.js';
 import { MIDI_ACTIONS, MIDI_DEFAULTS, MidiInput, MidiMap, describeBinding, midiSettings } from './midi-input.js';
 import { HOTSAVE_DEFAULTS, HOTSAVE_PLAYLIST_NAME, hotsaveName, hotsaveSettings, lookOf } from './look.js';
@@ -36,8 +39,9 @@ import { SPARKLE_COLOURS, SPARKLE_DEFAULTS, SPARKLE_PLACEMENTS, SPARKLE_SHAPES, 
 import { applyServerConfig } from './server-config.js';
 import { changedParams } from './params.js';
 import {
-  defaultLook, inputSettings, masterSettings, pairSettings, quadFromSettings, quadSettings,
-  resetInput as resetQuadInputTo, resetPair as resetQuadPairTo, swapLook, swappedInputs, wholeLook,
+  INPUT_IDS, defaultLook, inputSettings, lookFromAction, masterSettings, pairLookOf, pairOffAir, pairOnAir, pairSettings,
+  quadFromSettings, quadLookOf, quadSettings, resetInput as resetQuadInputTo, resetPair as resetQuadPairTo, swapLook,
+  swappedInputs, wholeLook,
 } from './quad.js';
 import { QUAD_LAYOUT, layoutSettings } from './layout.js';
 import { buildQuadView } from './quad-view.js';
@@ -442,8 +446,7 @@ async function startStreaming() {
     if (found.width !== settings.width || found.height !== settings.height)
       applyMatrixSize(found.width, found.height);
   } catch (error) {
-    link.sizeWarning = `Could not read the display size of ${host} (${error.message}); ` +
-      `streaming at ${settings.width}×${settings.height} as set.`;
+    link.sizeWarning = `${sizeProblem(host, error)}; streaming at ${settings.width}×${settings.height} as set.`;
   }
   // Stopped, or disconnected, while the size was being read.
   if (!link.pendingStart || !link.open)
@@ -465,6 +468,10 @@ function stopStreaming(sendBlack) {
   link.pendingStart = false;
   updateStreamButton();
 }
+
+// The one message for a size that could not be read, from Detect or from
+// connecting (#28): the receiver, and what went wrong in plain words.
+const sizeProblem = (host, error) => `Could not read the display size of ${host}: ${error.message}`;
 
 // The display's size and name from the receiver's /json/info, through the
 // server: { width, height, name }. Throws if it cannot be read.
@@ -488,7 +495,7 @@ async function detectSize() {
     applyMatrixSize(body.width, body.height);
     setStatus(`found ${body.name || settings.host}: ${body.width}×${body.height}`, 'ok');
   } catch (error) {
-    showError(`Detect failed: ${error.message}`);
+    showError(`${sizeProblem(settings.host, error)}.`);
   } finally {
     $('detect').textContent = 'Detect size';
   }
@@ -622,11 +629,12 @@ function renderParamControls(layer) {
   const fields = $('param-fields');
   fields.replaceChildren();
   $('param-controls').hidden = !shown.length;
+  view.paramRefreshers = [];
   for (const pattern of shown) {
     // Its Reset brings the channels showing it back to just the pattern, as
     // on the Mixer: A, and B while Left mixes; which, at the click.
     const inputs = () => ['a', 'b'].filter((id) => (id === 'a' ? view.pattern : view.layer?.pattern)?.id === pattern.id);
-    buildParamControls(fields, pattern, settings.patternParams[pattern.id], (next) => {
+    view.paramRefreshers.push(buildParamControls(fields, pattern, settings.patternParams[pattern.id], (next) => {
       if (Object.keys(next).length) settings.patternParams[pattern.id] = next;
       else delete settings.patternParams[pattern.id];
       saveSettings();
@@ -635,8 +643,97 @@ function renderParamControls(layer) {
       title: 'Back to just the pattern, unmodified, on the layer showing it: its settings, shape, region, area, ' +
         'border, spin, pulse, brightness, gamma and hue',
       run: () => inputs().forEach(resetQuadInput),
-    });
+    }, variationHooks(pattern)));
   }
+}
+
+// Variations (T72). For each pattern, the seeds it has shown, which Back
+// steps through, and the anchor Return goes back to: its settings when its
+// variation was last kept or a look holding it was loaded. Kept in the page
+// only; what lasts is saved in playlists.
+const variations = new Map();
+function variationOf(id) {
+  if (!variations.has(id)) variations.set(id, { seeds: [], anchor: null });
+  return variations.get(id);
+}
+
+// The renderer's instances of a pattern on the layers the Patterns view
+// shows (A, and B while it mixes).
+function instanceKeys(id) {
+  return ['a', 'b'].filter((input) => (input === 'a' ? view.pattern : view.layer?.pattern)?.id === id)
+    .map((input) => `${input}:${id}`);
+}
+
+function seedOnScreen(id) {
+  for (const key of instanceKeys(id)) {
+    const seed = renderer?.seedOf(key);
+    if (seed) return seed;
+  }
+  return null;
+}
+
+function noteSeed(id, seed) {
+  const seeds = variationOf(id).seeds;
+  if (!seed || seeds[seeds.length - 1] === seed) return;
+  seeds.push(seed);
+  if (seeds.length > 50) seeds.shift();
+}
+
+function anchorVariation(id) {
+  variationOf(id).anchor = { ...(settings.patternParams[id] ?? {}) };
+}
+
+function variationHooks(pattern) {
+  const id = pattern.id;
+  return {
+    current: () => seedOnScreen(id),
+    use: (seed) => {
+      for (const key of instanceKeys(id)) renderer?.reseed(key, seed);
+      noteSeed(id, seed);
+    },
+    back: () => {
+      const seeds = variationOf(id).seeds;
+      if (seeds.length < 2) return null;
+      seeds.pop();
+      return seeds[seeds.length - 1];
+    },
+    keep: () => anchorVariation(id),
+    canReturn: () => !!variationOf(id).anchor,
+    returnTo: () => {
+      const anchor = variationOf(id).anchor;
+      if (!anchor) return;
+      if (Object.keys(anchor).length) settings.patternParams[id] = { ...anchor };
+      else delete settings.patternParams[id];
+      saveSettings();
+      view.paramKey = null;
+      renderParamControls(view.layer);
+    },
+  };
+}
+
+// Twice a second: notes each shown pattern's seed, which changes when a Mark
+// Estes pattern re-rolls itself, and shows it in Pattern settings.
+function refreshVariations(now) {
+  if (now - (view.lastVariationCheck ?? -Infinity) < 500) return;
+  view.lastVariationCheck = now;
+  for (const pattern of [view.pattern, view.layer?.pattern])
+    if (pattern) noteSeed(pattern.id, seedOnScreen(pattern.id));
+  for (const controls of view.paramRefreshers ?? []) controls?.refresh();
+}
+
+// A whole look as a saved look keeps it: each input's settings with the seed
+// on screen filled in when no variation is kept, so the look comes back as
+// it was (T72).
+function withSeeds(look) {
+  const inputs = { ...look.inputs };
+  for (const id of INPUT_IDS) {
+    const input = inputs[id];
+    const pattern = findPattern(input.patternId);
+    if (!pattern?.params?.some((param) => param.type === 'variation') || input.params.variation) continue;
+    const seed = renderer?.seedOf(`${id}:${input.patternId}`);
+    if (seed) inputs[id] = { ...input, params: { ...input.params, variation: seed } };
+  }
+  return { ...look, inputs };
 }
 
 // Saved pattern parameters, kept only for patterns that still exist and
@@ -856,21 +953,24 @@ let playlistPanel = null;
 
 let spectrumPanel = null;
 
-// The patterns showing: layer A's, and layer B's when the mixer is on.
-function shownPatternIds(patternId, mixer) {
-  return [patternId, ...(mixer.enabled ? [mixer.patternId] : [])];
+// The look on screen now, as a playlist entry (T73): the pair Hotsave is set
+// to save (the pair on air, Left or Right) or the whole quad, with each
+// input's settings and variation, its trims and shape, the pair's mix, and
+// the shared look settings.
+function currentLook() {
+  const look = withSeeds(currentWholeLook());
+  const scope = settings.hotsave.scope;
+  const action = scope === 'quad' ? quadLookOf(look) : pairLookOf(look, scope === 'onAir' ? pairOnAir(look.master) : scope);
+  return { version: ENTRY_VERSION, name: '', seconds: DEFAULT_SECONDS, options: [{ moment: null, actions: [action] }] };
 }
 
-// The look on screen now, as a playlist entry: the patterns, mixer and
-// shapes, the look settings (look.js) and each shown pattern's parameters.
-function currentLook() {
-  const params = {};
-  for (const id of shownPatternIds(view.pattern.id, settings.mixer))
-    params[id] = settings.patternParams[id] ?? {};
-  return {
-    name: '', patternId: view.pattern.id, seconds: DEFAULT_SECONDS,
-    mixer: settings.mixer, shapes: settings.shapes, look: lookOf(settings), params,
-  };
+// What an entry holds, for a Hotsave's name: the whole quad, or which pair.
+function savedWhat(entry) {
+  const look = entryLook(entry);
+  if (look?.scope === 'quad') return 'whole quad';
+  const scope = settings.hotsave.scope;
+  return scope === 'onAir' ? `${pairOnAir(settings.quad.master) === 'left' ? 'Left' : 'Right'}, on air`
+    : scope === 'left' ? 'Left' : 'Right';
 }
 
 // Shows the look settings in their controls after they were changed from
@@ -892,30 +992,23 @@ function syncLookControls() {
   audio.configurePlot(settings.spectrumOptions.fftSize, audio.plotEnabled);
 }
 
-// Puts a playlist entry on screen: layer A crossfades as for any pattern
-// change, and the mixer and both shapes switch with it.
+// Puts a playlist entry on screen (T73): a pair look into the pair
+// playlists play on, a whole-quad look into all four inputs. The main is
+// never moved. The shared look settings (hue, speed, palette and the rest)
+// reach every pair, so a pair look applies them only when its pair can be
+// seen on the main; loading into the pair off air leaves them alone. A
+// change of pattern on A crossfades as for any pattern change.
 function applyLook(entry) {
-  const pattern = PATTERNS.find((p) => p.id === entry.patternId);
-  if (!pattern)
+  const action = entryLook(entry);
+  if (!action)
     return;
-  settings.mixer = mixerSettings(entry.mixer, PATTERNS.map((p) => p.id));
-  settings.shapes = { a: shapeSettings(entry.shapes.a), b: shapeSettings(entry.shapes.b) };
-  // Entries saved before looks were kept have neither; what is set stays.
-  if (entry.params) {
-    for (const id of shownPatternIds(entry.patternId, settings.mixer)) {
-      const changed = changedParams(PATTERNS.find((p) => p.id === id), entry.params[id]);
-      if (Object.keys(changed).length) settings.patternParams[id] = changed;
-      else delete settings.patternParams[id];
-    }
-    // Rebuild Pattern settings even if the patterns are the same.
-    view.paramKey = null;
-  }
-  if (entry.look) {
-    Object.assign(settings, entry.look);
-    syncLookControls();
-  }
-  selectPattern(pattern);
-  updateMixerControls();
+  const now = currentWholeLook();
+  const pair = settings.playlists.pair;
+  const shared = action.scope === 'quad' || !pairOffAir(now.master, pair);
+  applyWholeLook(lookFromAction(action, now, { pair, shared }, PATTERNS));
+  if (action.shared && !shared)
+    showNotice(`Loaded into ${pair === 'left' ? 'Left' : 'Right'}, off air: its hue, speed and palette were left as ` +
+      'they are, as they would change the pair on air.');
   saveSettings();
 }
 
@@ -931,9 +1024,55 @@ function commitPlaylists(next) {
   // Edits to the playlist that is playing take effect without a restart.
   if (player.playing)
     player.update(activePlaylist()?.entries ?? [], playlistOptions());
+  // So do edits to the cue list that is playing: its clock keeps its place.
+  if (view.cue) {
+    const list = settings.playlists.lists.find((each) => each.id === view.cue.listId);
+    if (!list?.track) {
+      view.cue = null;
+    } else {
+      const { origin, held, pending, current } = view.cue.clock;
+      view.cue.clock = Object.assign(cueClockFor(list), { origin, held, pending, current });
+    }
+  }
   saveSettings();
   renderHotsaveControls();
 }
+
+// Cue lists (T76). One plays at a time, from Go on the track's first
+// downbeat, on the beat clock; its cues load into the pair Plays on names.
+const cueClockFor = (list) => new CueClock(list.entries.map((entry) => cueBeat(entry.at)));
+const cueApi = {
+  go() {
+    const list = activePlaylist();
+    if (!list?.track || !list.entries.length) return;
+    if (!Number.isFinite(view.beatPosition)) {
+      showNotice('The beat clock is not running yet; press Go again in a moment.');
+      return;
+    }
+    player.stop();
+    view.cue = { listId: list.id, clock: cueClockFor(list) };
+    view.cue.clock.go(view.beatPosition);
+  },
+  stop() {
+    view.cue = null;
+  },
+  next() {
+    view.cue?.clock.next(view.beatPosition);
+  },
+  back() {
+    view.cue?.clock.back(view.beatPosition);
+  },
+  // Hold, or let go of a hold.
+  hold() {
+    const clock = view.cue?.clock;
+    if (!clock) return;
+    if (clock.held !== null) clock.release(view.beatPosition);
+    else clock.hold(view.beatPosition);
+  },
+  status() {
+    return view.cue?.clock.status(view.beatPosition) ?? null;
+  },
+};
 
 // Hotsave: adds the look on screen, with everything that makes it, to the
 // Hotsave playlist as a new entry named for the time. The playlist is made
@@ -948,7 +1087,8 @@ function hotsave() {
     }
     if (list.entries.length >= MAX_ENTRIES)
       throw new Error(`the playlist "${list.name}" is full, at ${MAX_ENTRIES} entries.`);
-    const entry = { ...currentLook(), name: hotsaveName(new Date()) };
+    const look = currentLook();
+    const entry = { ...look, name: `${hotsaveName(new Date())} (${savedWhat(look)})` };
     commitPlaylists({
       ...next, lists: next.lists.map((each) => each.id === list.id ? { ...list, entries: [...list.entries, entry] } : each),
     });
@@ -975,7 +1115,11 @@ function renderHotsaveControls() {
 
 // MIDI buttons for the downbeat and tap (midi-input.js, T64): learned pads,
 // kept in the settings. Chrome and Edge only; the page says so elsewhere.
-const midiActions = { downbeat: (seconds) => markDownbeat(seconds), tap: (seconds) => tapTempo(seconds) };
+const midiActions = {
+  downbeat: (seconds) => markDownbeat(seconds), tap: (seconds) => tapTempo(seconds),
+  cueGo: () => { cueApi.go(); playlistPanel?.status(); },
+  cueNext: () => cueApi.next(), cueBack: () => cueApi.back(), cueHold: () => cueApi.hold(),
+};
 let midi = null;
 
 function renderMidiControls() {
@@ -1002,6 +1146,21 @@ function bindMidiControls() {
   };
   const map = new MidiMap(settings.midi.bindings, (action, seconds) => midiActions[action](seconds), save);
   midi = { map, input: new MidiInput(map) };
+  // A row for each action the page has none for, such as the cue list's
+  // (T76), from the action's own label and help, so that adding an action can
+  // never stop the page starting.
+  for (const { id, label, help } of MIDI_ACTIONS) {
+    if (document.querySelector(`[data-midi-row="${id}"]`)) continue;
+    const row = Object.assign(document.createElement('div'), { className: 'row' });
+    row.dataset.midiRow = id;
+    const learn = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Learn', title: help });
+    learn.dataset.midiLearn = id;
+    const forget = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Forget', title: 'Unbind this pad' });
+    forget.dataset.midiForget = id;
+    row.append(Object.assign(document.createElement('span'), { textContent: `${label} pad` }), learn,
+      Object.assign(document.createElement('output'), { id: `midi-binding-${id}`, className: 'hint' }), forget);
+    $('midi-controls').append(row);
+  }
   $('midi-connect').addEventListener('click', async () => {
     await midi.input.connect();
     renderMidiControls();
@@ -1047,6 +1206,12 @@ function bindHotsaveControls() {
     settings.hotsave = { ...settings.hotsave, playlistId: $('hotsave-playlist').value || null };
     saveSettings();
   });
+  const scope = $('hotsave-scope');
+  scope.value = settings.hotsave.scope;
+  scope.addEventListener('change', () => {
+    settings.hotsave = hotsaveSettings({ ...settings.hotsave, scope: scope.value });
+    saveSettings();
+  });
   $('hotsave-now').addEventListener('click', hotsave);
   renderHotsaveControls();
 }
@@ -1065,6 +1230,7 @@ function bindPlaylistPanel() {
     currentLook,
     show: applyLook,
     play: (index) => {
+      view.cue = null;
       const entry = player.start(activePlaylist()?.entries ?? [], performance.now(), { ...playlistOptions(), index });
       if (entry)
         applyLook(entry);
@@ -1076,6 +1242,7 @@ function bindPlaylistPanel() {
         applyLook(entry);
     },
     player,
+    cue: cueApi,
     now: () => performance.now(),
     patternName: (id) => PATTERNS.find((pattern) => pattern.id === id)?.name ?? id,
     showError,
@@ -1271,7 +1438,7 @@ function applyRandomChanges(tracks) {
 function randomizerStatus() {
   const now = performance.now();
   $('randomizer-status').textContent = !settings.randomizer.enabled ? '' :
-    player.playing ? 'Paused while a playlist plays' :
+    player.playing || view.cue ? 'Paused while a playlist or cue list plays' :
       TRACKS.map((track) => [track, randomizer.remaining(track.id, settings.randomizer, now, view.beatPosition)])
         .filter(([, left]) => left !== null)
         .map(([track, left]) => `${track.name}: ${waitLabel(left, settings.randomizer.unit)}`).join(' · ');
@@ -2248,6 +2415,7 @@ function applyWholeLook(look, { cut = false } = {}) {
     const input = look.inputs[id];
     if (Object.keys(input.params).length) settings.patternParams[input.patternId] = input.params;
     else delete settings.patternParams[input.patternId];
+    anchorVariation(input.patternId);
   }
   settings.quad = quadSettings({ ...look }, PATTERNS);
   view.pairFades = {};
@@ -2360,7 +2528,7 @@ function showQuadView() {
     // not running).
     randomizer: () => {
       const now = performance.now();
-      return { ...settings.randomizer, paused: player.playing,
+      return { ...settings.randomizer, paused: player.playing || !!view.cue,
         remaining: Object.fromEntries(TRACKS.map((track) => [track.id,
           randomizer.remaining(track.id, settings.randomizer, now, view.beatPosition)])) };
     },
@@ -2497,7 +2665,14 @@ function tick(now) {
       }
     }
   }
-  if (player.playing) {
+  if (view.cue) {
+    // A cue list lands its changes on the track's bar lines itself.
+    randomizer.reset();
+    const index = view.cue.clock.tick(view.beatPosition);
+    const list = settings.playlists.lists.find((each) => each.id === view.cue.listId);
+    if (index !== null && list?.entries[index])
+      applyLook(list.entries[index]);
+  } else if (player.playing) {
     // The randomizer starts its waits afresh once the playlist stops.
     randomizer.reset();
     const entry = changeAllowed(settings.tempo.quantize, tempo) ? player.tick(now) : null;
@@ -2520,6 +2695,7 @@ function tick(now) {
     }
   }
 
+  refreshVariations(now);
   const previewDue = quadVisible() && now - quad.lastPreview >= QUAD_PREVIEW_MS;
   let frame;
   try {

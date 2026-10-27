@@ -4,7 +4,9 @@
 <!-- Loaded by tools/check-hotsave.mjs in headless Chrome. Opens the composer
      in a frame, sets a look, presses the Hotsave key, changes the look, then
      shows the saved entry and reports what came back, from the controls and
-     from the saved settings. -->
+     from the saved settings. Then pairs (T73): the entry shown on Right while
+     it is off air and again on air, Hotsave of Right and of the whole quad,
+     and the main never moved. -->
 <iframe id="app" src="/index.html" width="1200" height="900"></iframe>
 <pre id="out">running</pre>
 <script type="module">
@@ -38,9 +40,11 @@ try {
   await wait(50);
   const after = saved();
   const list = after.playlists.lists.find((l) => l.id === after.hotsave.playlistId);
-  result.saved = { playlist: list?.name, entries: list?.entries.length, entry: list?.entries[0] && {
-    name: list.entries[0].name, patternId: list.entries[0].patternId, params: list.entries[0].params,
-    hue: list.entries[0].look?.hue, speed: list.entries[0].look?.speed, sparkles: list.entries[0].look?.sparkles.enabled } };
+  // Entries are version 2 (T73): their look is the first option's first action.
+  const look = list?.entries[0]?.options?.[0]?.actions?.[0];
+  result.saved = { playlist: list?.name, entries: list?.entries.length, entry: look && {
+    name: list.entries[0].name, version: list.entries[0].version, scope: look.scope, patternId: look.inputs[0].patternId,
+    params: look.inputs[0].params, hue: look.shared?.hue, speed: look.shared?.speed, sparkles: look.shared?.sparkles.enabled } };
   result.notice = $('notice').textContent;
   // Change it all.
   doc.querySelector('#patterns button[data-id="tunnel"]').click();
@@ -71,6 +75,65 @@ try {
   press('S');
   await wait(50);
   result.second = saved().playlists.lists.find((l) => l.id === after.hotsave.playlistId).entries.length;
+  // Pairs (T73). The main fader is the Mixer view's; Plays on is the
+  // Playlist view's.
+  doc.querySelector('[data-view-button="quad"]').click();
+  await wait(100);
+  const mainFader = doc.querySelector('.qv-master-fader input[type=range]');
+  const setMain = async (value) => {
+    mainFader.value = String(value);
+    mainFader.dispatchEvent(new win.Event('input', { bubbles: true }));
+    await wait(100);
+  };
+  const showEntry = async (index) => {
+    select.value = after.hotsave.playlistId;
+    select.dispatchEvent(new win.Event('change'));
+    await wait(50);
+    [...doc.querySelectorAll(`#playlist-fields details[data-entry="${index}"] button`)]
+      .find((b) => b.textContent === 'Show now').click();
+    await wait(100);
+  };
+  await setMain(0);
+  set('hue', '0.1');
+  const leftBefore = saved().quad.inputs.a;
+  $('notice').textContent = '';
+  const pairSelect = $('playlist-pair');
+  pairSelect.value = 'right';
+  pairSelect.dispatchEvent(new win.Event('change'));
+  await wait(50);
+  await showEntry(0);
+  let now = saved();
+  result.intoRightOffAir = { c: now.quad.inputs.c.patternId, cScale: now.quad.inputs.c.params.scale,
+    a: now.quad.inputs.a.patternId === leftBefore.patternId, main: now.quad.master.position, hue: now.hue,
+    notice: /off air/.test($('notice').textContent) };
+  await setMain(1);
+  set('hue', '0.1');
+  await showEntry(0);
+  now = saved();
+  result.intoRightOnAir = { hue: now.hue, main: now.quad.master.position };
+  // Hotsave with the main on Right saves Right; then the whole quad.
+  press('s');
+  await wait(50);
+  let entries = saved().playlists.lists.find((l) => l.id === after.hotsave.playlistId).entries;
+  let lastLook = entries.at(-1).options[0].actions[0];
+  result.savedRight = { name: entries.at(-1).name, scope: lastLook.scope, first: lastLook.inputs[0].patternId,
+    second: lastLook.inputs[1].patternId, c: now.quad.inputs.c.patternId, d: now.quad.inputs.d.patternId };
+  const scope = $('hotsave-scope');
+  scope.value = 'quad';
+  scope.dispatchEvent(new win.Event('change'));
+  press('s');
+  await wait(50);
+  entries = saved().playlists.lists.find((l) => l.id === after.hotsave.playlistId).entries;
+  lastLook = entries.at(-1).options[0].actions[0];
+  result.savedQuad = { name: entries.at(-1).name, scope: lastLook.scope, inputs: Object.keys(lastLook.inputs).join('') };
+  // The whole quad comes back into all four inputs; the main stays where it is.
+  const quadIndex = entries.length - 1;
+  const wanted = saved().quad.inputs;
+  await setMain(0.3);
+  await showEntry(quadIndex);
+  now = saved();
+  result.quadBack = { same: ['a', 'b', 'c', 'd'].every((id) => now.quad.inputs[id].patternId === wanted[id].patternId),
+    main: now.quad.master.position };
   out.textContent = JSON.stringify(result, null, 1);
 } catch (error) {
   out.textContent = `FAIL ${error.stack}`;

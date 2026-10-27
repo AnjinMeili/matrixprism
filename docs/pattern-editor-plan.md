@@ -64,6 +64,12 @@ record each parameter as a deliberate difference.
 
 ### 3. Variants: curated patterns
 
+*Replaced 2026-10-27 (T72): playlists already keep a look, so they are
+evolved to be the save rather than adding another store. A variant is a playlist entry; what was missing is a pattern's variation,
+now a seed kept with its settings (Keep, New, Back, Return), and the
+randomizer, the quad in entries, loading one entry onto one input, and
+export and import, which follow. The text below is the earlier plan.*
+
 A variant is a pattern with its parameters set to taste, plus its look (hue,
 speed, palette), under a name of its own.
 
@@ -121,7 +127,10 @@ steps. It can be replayed exactly, and is small enough to save.
    be mutated" flag, which waits for step 4.*
 2. **Favourites and categories** in the picker, and the randomizer drawing
    from them.
-3. **Variants:** save, load and use in playlists.
+3. **Variants:** save, load and use in playlists. *Replaced by T72:
+   playlists are the save; a pattern's variation is a seed kept with its
+   settings. The variation is built; the randomizer, the quad in entries,
+   Load into input and export and import follow.*
 4. **The mutation timeline:** mutate, pause, scrub, tweak, replay, branch,
    save. Its state rules go in a pure module with tests, as `tempo.js` and
    `mixer.js` do.

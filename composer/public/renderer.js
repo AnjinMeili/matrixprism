@@ -1,5 +1,6 @@
 import { PRELUDE } from './patterns.js';
-import { paramUniforms, paramValues, uniformValue } from './params.js';
+import { followedValues, paramUniforms, paramValues, uniformValue } from './params.js';
+import { needsReseed, newSeed, seededRandom } from './seed.js';
 import { SPECTRUM_BINS, SPECTRUM_HISTORY_ROWS, SpectrumHistory } from './audio.js';
 import { RAW_TEXELS, rawTexture } from './spectrum-bands.js';
 import { OverlayLayer } from './overlays.js';
@@ -142,6 +143,8 @@ export class Renderer {
     this.gl = gl;
     this.programs = new Map();
     this.auroraInstances = new Map();
+    // Seeds asked for by reseed() for instances not yet made again (T72).
+    this.pendingSeeds = new Map();
     this.lastPatternId = null;
     this.width = 0;
     this.height = 0;
@@ -239,7 +242,7 @@ export class Renderer {
       // The pattern's own parameters (params.js) are uniforms named p_<id>.
       const source = `${PRELUDE}\n${paramUniforms(pattern)}\n${pattern.glsl}\n` +
         'void main() { gl_FragColor = vec4(clamp(render(), 0.0, 1.0), 1.0); }';
-      const names = (pattern.params ?? []).map((param) => `p_${param.id}`);
+      const names = [...(pattern.params ?? []).map((param) => `p_${param.id}`), ...(pattern.stateUniforms ?? [])];
       this.programs.set(pattern.id, this.createProgram(source, [...PATTERN_UNIFORMS, ...names]));
     }
     return this.programs.get(pattern.id);
@@ -303,7 +306,8 @@ export class Renderer {
   // same pattern on two inputs runs as two, each with its own settings.
   renderPattern(pattern, target, time, state, params = null, key = pattern.id) {
     const gl = this.gl;
-    const values = params ?? paramValues(pattern, state.patternParams?.[pattern.id]);
+    // Settings that follow the music (#21) are moved for this frame here.
+    const values = followedValues(pattern, params ?? paramValues(pattern, state.patternParams?.[pattern.id]), state);
     if (pattern.createInstance) {
       this.renderInstance(pattern, target, state, values, key);
       return;
@@ -348,7 +352,42 @@ export class Renderer {
       for (const param of pattern.params)
         gl.uniform1f(u[`p_${param.id}`], uniformValue(param, values[param.id]));
     }
+    if (pattern.createState) {
+      for (const [name, value] of Object.entries(this.shaderState(pattern, key).uniforms(state, values)))
+        if (typeof value === 'number') gl.uniform1f(u[name], value);
+        else gl.uniform3fv(u[name], value);
+    }
     this.draw(info);
+  }
+
+  // A shader pattern with state of its own (`createState`, `stateUniforms`)
+  // keeps it here, keyed and dropped as a stateful pattern's instance is; it
+  // has no picture of its own, so no texture.
+  shaderState(pattern, key) {
+    let entry = this.auroraInstances.get(key);
+    if (!entry) {
+      entry = { animation: pattern.createState(), texture: null, patternId: pattern.id };
+      this.auroraInstances.set(key, entry);
+    }
+    return entry.animation;
+  }
+
+  // The seed of the variation an instance shows (T72), or null when there is
+  // none: a pattern that re-rolls itself (Mark Estes) names its latest.
+  seedOf(key) {
+    if (this.pendingSeeds.has(key)) return this.pendingSeeds.get(key);
+    const entry = this.auroraInstances.get(key);
+    return entry?.seed ? entry.animation.seed ?? entry.seed : null;
+  }
+
+  // Starts an instance afresh from `seed` on its next frame.
+  reseed(key, seed) {
+    this.pendingSeeds.set(key, seed);
+    const entry = this.auroraInstances.get(key);
+    if (entry) {
+      this.gl.deleteTexture(entry.texture);
+      this.auroraInstances.delete(key);
+    }
   }
 
   // The live animation for a stateful pattern, or null before its first
@@ -376,14 +415,24 @@ export class Renderer {
   renderInstance(pattern, target, state, params, key = pattern.id) {
     const gl = this.gl;
     let entry = this.auroraInstances.get(key);
+    // A kept variation other than the one running starts it afresh (T72).
+    if (entry && needsReseed(entry.seed, params)) {
+      gl.deleteTexture(entry.texture);
+      this.auroraInstances.delete(key);
+      entry = null;
+    }
     if (!entry) {
-      const animation = pattern.createInstance(this.width, this.height);
+      // Each instance draws its dice from a seed: the kept variation, one
+      // asked for, or a new one, which seedOf() reports so it can be kept.
+      const seed = this.pendingSeeds.get(key) ?? (params?.variation || newSeed());
+      this.pendingSeeds.delete(key);
+      const animation = pattern.createInstance(this.width, this.height, seededRandom(seed));
       const texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, this.width, this.height,
         0, gl.RGB, gl.UNSIGNED_BYTE, null);
       this.setSampling(gl.NEAREST);
-      entry = { animation, texture, patternId: pattern.id };
+      entry = { animation, texture, patternId: pattern.id, seed };
       this.auroraInstances.set(key, entry);
     }
     const rgb = entry.animation.renderFrame(state, params);

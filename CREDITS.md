@@ -20,6 +20,7 @@ It is the licence that works with everything included here:
 | The Fibonacci128 adaptations | GPL-3.0 | The composer as combined with them is distributed under GPL-3.0 |
 | Aurora, FastLED, AuroraDrop, Meyda, ws | MIT | Permissive: included in a GPL work, keeping their notices |
 | Pendulum Wave's source | CC0 1.0 | Public domain dedication |
+| Spotify's visualizer-app | BSD-3-Clause | Permissive: included in a GPL work, keeping its notice, and not using Spotify's name to promote it |
 | Essentia.js | AGPL-3.0 | GPL-3.0 §13 allows combining with AGPL-3.0 code; that part keeps its own terms, including offering the source to users of a served copy |
 | Table Mark Estes | Apache-2.0 | Permissive, and compatible with GPL-3.0 one way: Apache-2.0 code may be included in a GPL-3.0 work, keeping its licence and notices. The directory stays Apache-2.0 |
 | Exo 2, a font used only to draw the README artwork | SIL OFL 1.1 | A font may be bundled with any software, keeping its licence; it is not sold on its own |
@@ -44,6 +45,7 @@ file records the exact upstream revision that was read.
 | [fibonacci128-touch-demo](https://github.com/jasoncoon/fibonacci128-touch-demo), through the fork [fibonacci128-touch-aurora](https://github.com/AnjinMeili/fibonacci128-touch-aurora) at `5f8dd39` | Jason Coon and Fibonacci128 contributors; Radial Fire after Intrinsically-Sublime's [esp8266-fastled-webserver](https://github.com/Intrinsically-Sublime/esp8266-fastled-webserver), adapted by Marc Merlin | GPL-3.0 | `composer/public/fibonacci-patterns.js`; details in `composer/public/licenses/fibonacci.txt` |
 | [ColorWavesWithPalettes](https://gist.github.com/kriegsman/8281905786e8b2632aeb): 33 gradient palettes from the [cpt-city](http://soliton.vm.bytemark.co.uk/pub/cpt-city/) archive | Mark Kriegsman; each palette's original author is named in its source comment | As published with the gist and in cpt-city; the source comments are kept verbatim | `composer/public/gradient-palettes.js`; comments in `composer/public/licenses/gradient-palettes.txt` |
 | [AuroraDrop](https://github.com/fivefishstudios/AuroraDrop) and its fork [AuroraDrop-LXP](https://github.com/troyhacks/AuroraDrop-LXP) | uklooney (fivefishstudios) and troyhacks, on Aurora by Jason Coon | No repository licence. Only files carrying Aurora's MIT notice are ported; files without a notice are left out and listed | `composer/public/patterns/auroradrop/`; see its [NOTICE.md](composer/public/patterns/auroradrop/NOTICE.md) |
+| [visualizer-app](https://github.com/AnjinMeili/visualizer-app) at `b0e9b8e`, a fork of Spotify's emptied [spotify/visualizer-app](https://github.com/spotify/visualizer-app) | Bastian Kuberek and Per-Olov Jernberg (possan), for Spotify AB | BSD-3-Clause, Copyright (c) 2013 Spotify AB; the raymarching shader also marked public domain by its author. The boids, borrowed from the unlicensed [canvas-boids](https://github.com/glesica/canvas-boids), are left out | `composer/public/patterns/visualizer-app/`; see its [NOTICE.md](composer/public/patterns/visualizer-app/NOTICE.md) |
 | Table_Mark_Estes69, in [FastLED_NeoMatrix_SmartMatrix_LEDMatrix_GFX_Demos](https://github.com/marcmerlin/FastLED_NeoMatrix_SmartMatrix_LEDMatrix_GFX_Demos) at `c653f9f`, with mirror and shift routines after Aaron Liddiment's [LEDMatrix](https://github.com/marcmerlin/LEDMatrix) | Mark Estes; adapted and maintained by Marc Merlin | Apache-2.0: the `LICENSE` in upstream's `LEDMatrix/Table_Mark_Estes/`, the sketch's directory (the `…69` version carries none of its own); confirmed by Marc Merlin on 2026-10-23. Text and notice in `composer/public/licenses/table-mark-estes.txt` | `composer/public/patterns/mark-estes/`, every file tagged `SPDX-License-Identifier: Apache-2.0`; see its [NOTICE.md](composer/public/patterns/mark-estes/NOTICE.md) |
 
 ## Libraries included in this repository
@@ -66,6 +68,7 @@ published description, and is credited in the source file's header.
 | Fire2012, a 1D flame simulation, and its 2D use on a matrix | Mark Kriegsman (FastLED's examples, MIT); WLED's "Fire 2012 2D" | `composer/public/fire.js` |
 | Key profiles for key detection | Krumhansl and Kessler (1982) | `composer/public/key-detector.js` |
 | The Camelot wheel notation for keys | Mixed In Key; "Camelot" is its trademark | The Camelot Wheel pattern, the Monitor's key wheel and key labels |
+| The renormalised iteration count, for smooth colouring of escape-time fractals | Linas Vepstas (1997) | Julia Flow, `composer/public/patterns/visualizer-app/julia.js` |
 | Spectral flux onsets | The onset-detection literature (e.g. Bello et al., 2005; Dixon, 2006) | `composer/public/band-flux.js`, `flux-worklet.js` |
 
 ## Protocols and interoperability
@@ -96,3 +99,10 @@ MatrixPrism was designed, directed and tested by Anjin, and much
 of its code and documentation was written with AI coding agents (Anthropic's
 Claude, through Claude Code). [AGENTS.md](AGENTS.md) is the guide those
 agents work from.
+
+Some patterns are Claude's own creations rather than ports or adaptations:
+
+| Pattern | Where |
+|---------|-------|
+| Julia Flow, a Julia set travelling the Mandelbrot set's edge | `composer/public/patterns/visualizer-app/julia.js` |
+| Phyllotaxis Bloom, golden-angle hues and Fibonacci-armed waves; first written for the Fibonacci128 board and committed to [fibonacci128-touch-demo](https://github.com/jasoncoon/fibonacci128-touch-demo) (`f128-one-inch`, `1dd4217`, GPL-3.0) | `composer/public/fibonacci-patterns.js`; see `composer/public/licenses/fibonacci.txt` |

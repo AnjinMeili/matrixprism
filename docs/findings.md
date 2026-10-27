@@ -306,3 +306,31 @@ as YouTube's stream manager asked).
 
 Not covered: what YouTube's stream manager says of each size and rate, and
 how its player frames a 4:3 stream; those need a test stream.
+
+## DJs and VJs
+
+Asked: how DJs and VJs work together, and how a VJ could keep a cue list per
+track that the DJ can steer (T76). Surveyed from the tools' own
+documentation and user reports, October 2026.
+
+- By hand, a VJ follows by ear and by agreed signals; Ableton Link carries
+  tempo and beat phase, and MIDI or OSC carry triggers.
+- The tools that follow a DJ all work per track and follow the track's own
+  playhead: Resolume Arena with Pioneer players (a clip linked to a track),
+  Beat Link Trigger (cues on a track's beat grid), SoundSwitch (a scripted
+  show per track, Autoloops otherwise) and rekordbox's Lighting mode (a scene
+  per phrase).
+- What the DJ software tells others differs widely. Pioneer's Pro DJ Link
+  and Denon's StageLinQ give the track, its position and the faders. Ableton
+  Link gives only tempo and phase. djay Pro's library database (macOS) gives
+  the track, its deck, its BPM and the DJ's cue points, including the Start
+  and End cues its Automix mixes at, within about five seconds; it does not
+  give the faders or the play position, and its format is undocumented.
+  Serato DJ Pro supports Link, and its Remote protocol (OSC over TCP, as its
+  own remote apps use) gives each deck's track, playhead and faders in real
+  time. That protocol is undocumented.
+
+What was done: the plan, [cue-lists-plan.md](cue-lists-plan.md), keeps cue
+lists as playlists named by track, places cues in bars from markers (the
+start, the DJ's mix-out, cue points, breaks), and lets the DJ steer them by
+MIDI and, later, from djay Pro and Link.

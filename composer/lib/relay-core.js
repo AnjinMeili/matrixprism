@@ -4,7 +4,9 @@
 // frame channel that turns the page's frames into DDP packets. Each brings its
 // own transport: HTTP and a WebSocket in the server; a secure scheme and IPC in
 // the app. Nothing here listens on a port.
+import { lookup } from 'node:dns/promises';
 import fs from 'node:fs/promises';
+import { isIP } from 'node:net';
 import path from 'node:path';
 import { DDP_PORT, DdpSender, parseMatrixInfo } from './ddp.js';
 import { discoverReceivers } from './mdns.js';
@@ -47,12 +49,58 @@ export async function fileAnswer(publicDir, pathname) {
   }
 }
 
-export async function fetchMatrixInfo(host, fetchImpl = fetch) {
+// A receiver's address for HTTP, its IPv4 address first (#28). On macOS a
+// lookup for any family waits about five seconds for an IPv6 answer that a
+// receiver answering mDNS for IPv4 only never gives, longer than the size
+// is waited for; DDP's sends are IPv4 already. A host with no IPv4 address
+// is looked up for any family, and an address is used as it is.
+// The lookups are given `waitMs` in all: a name nobody answers for costs
+// about five seconds a lookup on macOS.
+export async function receiverAddress(host, lookupImpl = lookup, waitMs = 3000) {
+  if (isIP(host.replace(/^\[|\]$/g, ''))) return host;
+  let timer;
+  const deadline = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error('lookup timed out'), { code: 'LOOKUPTIMEOUT' })), waitMs);
+  });
+  const find = async () => {
+    try {
+      return (await lookupImpl(host, { family: 4 })).address;
+    } catch (error) {
+      if (error.code !== 'ENOTFOUND' && error.code !== 'EAI_NONAME') throw error;
+      const { address, family } = await lookupImpl(host);
+      return family === 6 ? `[${address}]` : address;
+    }
+  };
+  try {
+    return await Promise.race([find(), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// What went wrong reading a receiver, in words a person can act on.
+export function receiverProblem(error) {
+  if (error.name === 'TimeoutError' || error.name === 'AbortError') return 'no answer within 3 seconds';
+  const code = error.code ?? error.cause?.code;
+  if (code === 'ENOTFOUND' || code === 'EAI_NONAME') return 'the name was not found on the network';
+  if (code === 'LOOKUPTIMEOUT') return 'the name was not found on the network within 3 seconds';
+  if (code === 'ECONNREFUSED') return 'it refused the connection: is the receiver running?';
+  if (code === 'EHOSTUNREACH' || code === 'ENETUNREACH') return 'it cannot be reached from this computer';
+  return error.message;
+}
+
+export async function fetchMatrixInfo(host, fetchImpl = fetch, lookupImpl = lookup) {
   if (!/^[A-Za-z0-9.\-:\[\]]+$/.test(host)) throw new Error('invalid host');
-  const response = await fetchImpl(`http://${host}/json/info`, { signal: AbortSignal.timeout(3000) });
-  if (!response.ok) throw new Error(`HTTP ${response.status} from ${host}`);
+  let response;
+  try {
+    const address = await receiverAddress(host, lookupImpl);
+    response = await fetchImpl(`http://${address}/json/info`, { signal: AbortSignal.timeout(3000) });
+  } catch (error) {
+    throw new Error(receiverProblem(error));
+  }
+  if (!response.ok) throw new Error(`it answered HTTP ${response.status}`);
   const matrix = parseMatrixInfo(await response.json());
-  if (!matrix) throw new Error(`${host} did not report matrix dimensions`);
+  if (!matrix) throw new Error('it did not report the matrix dimensions');
   return matrix;
 }
 

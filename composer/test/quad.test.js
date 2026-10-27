@@ -4,10 +4,15 @@ import { PATTERNS } from '../public/patterns.js';
 import { LOOK_DEFAULTS, lookSettings } from '../public/look.js';
 import { SHAPE_DEFAULTS } from '../public/shape.js';
 import {
-  INPUT_DEFAULTS, INPUT_IDS, MASTER_DEFAULTS, PAIR_DEFAULTS, defaultLook, inputSettings, lookFromEntry, masterSettings,
-  pairSettings, plainLook, quadFromSettings, quadSettings, resetInput, resetPair, swapLook, swappedInputs, swappedPair,
-  wholeLook,
+  INPUT_DEFAULTS, INPUT_IDS, MASTER_DEFAULTS, PAIR_DEFAULTS, defaultLook, inputSettings, lookAction, lookFromAction,
+  masterSettings, pairLookOf, pairOffAir, pairOnAir, pairSettings, plainLook, quadFromSettings, quadLookOf, quadSettings,
+  resetInput, resetPair, swapLook, swappedInputs, swappedPair, wholeLook,
 } from '../public/quad.js';
+import { entryLook, playlistEntry } from '../public/playlist.js';
+
+const IDS = PATTERNS.map((pattern) => pattern.id);
+// An entry, read as a version 2 entry and loaded into a pair.
+const fromEntry = (entry, now, options) => lookFromAction(entryLook(playlistEntry(entry, IDS)), now, options, PATTERNS);
 import { BLEND_MODES, blendPixel } from '../public/mixer.js';
 
 // The quad mixer's model (T16): four inputs, two pairs, the master, whole looks.
@@ -93,14 +98,14 @@ function current() {
   }, PATTERNS);
 }
 
-test('a one-pair playlist entry loads into Left; Right, the master and unsaved shared settings stay', () => {
+test('an entry saved before version 2 loads into Left as it always did; Right, the master and unsaved shared settings stay', () => {
   const now = current();
   const entry = {
     name: 'Old', patternId: 'kaleido', seconds: 30,
     mixer: { enabled: true, patternId: 'cells', mode: 'difference', amount: 0.3 },
     shapes: { a: SHAPE_DEFAULTS, b: { ...SHAPE_DEFAULTS, region: 'centre' } },
   };
-  const look = lookFromEntry(entry, now, PATTERNS);
+  const look = fromEntry(entry, now);
   assert.equal(look.inputs.a.patternId, 'kaleido');
   assert.deepEqual(look.inputs.a.params, {}, 'a new pattern starts from its defaults');
   assert.equal(look.inputs.a.brightness, 0.7, 'the input keeps its trim');
@@ -112,20 +117,58 @@ test('a one-pair playlist entry loads into Left; Right, the master and unsaved s
   assert.deepEqual(look.master, now.master);
   assert.equal(look.shared.hue, 0.3, 'an entry without a look leaves the shared settings');
   // Same pattern, no saved parameters: the input's own stay.
-  const same = lookFromEntry({ ...entry, patternId: 'plasma' }, now, PATTERNS);
+  const same = fromEntry({ ...entry, patternId: 'plasma' }, now);
   assert.deepEqual(same.inputs.a.params, { scale: 5 });
   // Since T38 an entry carries its look and parameters.
-  const full = lookFromEntry({ ...entry, look: { ...LOOK_DEFAULTS, hue: 0.8 }, params: { kaleido: { segments: 9 } } },
-    now, PATTERNS);
+  const full = fromEntry({ ...entry, look: { ...LOOK_DEFAULTS, hue: 0.8 }, params: { kaleido: { segments: 9 } } }, now);
   assert.equal(full.shared.hue, 0.8);
   assert.deepEqual(full.inputs.a.params, { segments: 9 });
 });
 
-test('a quad entry is used whole', () => {
+test('a whole-quad look fills all four inputs and both pairs, but never moves the main', () => {
   const now = current();
   const saved = wholeLook({ inputs: { d: { patternId: 'cells' } }, master: { position: 0.5 } }, PATTERNS);
-  const look = lookFromEntry({ quad: saved, shared: saved.shared }, now, PATTERNS);
-  assert.deepEqual(look, saved);
+  const action = lookAction(quadLookOf(saved), IDS);
+  const look = lookFromAction(action, now, {}, PATTERNS);
+  assert.deepEqual(look, { ...saved, master: now.master });
+  assert.equal(action.master.position, 0.5, 'the main is kept as a record of the save');
+});
+
+test('a pair look loads into either pair, and the rest stays', () => {
+  const now = current();
+  const left = lookAction(pairLookOf(now, 'left'), IDS);
+  assert.deepEqual(left.inputs.map((input) => input.patternId), ['plasma', 'bars']);
+  // Left's look into Right: C and D become A and B, with their settings and trims.
+  const look = lookFromAction(left, now, { pair: 'right' }, PATTERNS);
+  assert.deepEqual(look.inputs.c, now.inputs.a);
+  assert.deepEqual(look.inputs.d, now.inputs.b);
+  assert.deepEqual(look.pairs.right, now.pairs.left);
+  assert.deepEqual(look.inputs.a, now.inputs.a, 'Left is untouched');
+  assert.deepEqual(look.pairs.left, now.pairs.left);
+  assert.deepEqual(look.master, now.master, 'the main is never moved');
+  // Captured and loaded back into the same pair, nothing changes.
+  assert.deepEqual(lookFromAction(lookAction(pairLookOf(now, 'right'), IDS), now, { pair: 'right' }, PATTERNS), now);
+  // The shared look settings are applied only when asked.
+  const brighter = { ...left, shared: { ...LOOK_DEFAULTS, hue: 0.9 } };
+  assert.equal(lookFromAction(brighter, now, { pair: 'right' }, PATTERNS).shared.hue, 0.9);
+  assert.equal(lookFromAction(brighter, now, { pair: 'right', shared: false }, PATTERNS).shared.hue, 0.3);
+  // An input's own hue, null to follow the main, is carried.
+  const own = lookAction({ ...left, inputs: [{ ...left.inputs[0], hue: 0.25 }, left.inputs[1]] }, IDS);
+  assert.equal(lookFromAction(own, now, { pair: 'right' }, PATTERNS).inputs.c.hue, 0.25);
+  assert.throws(() => lookAction({ ...left, inputs: [left.inputs[0]] }, IDS), /two inputs/);
+  assert.throws(() => lookAction({ ...left, inputs: [{ ...left.inputs[0], brightness: 2 }, left.inputs[1]] }, IDS), /brightness/);
+});
+
+test('which pair is on air, and which cannot be seen', () => {
+  const at = (position, mode = 'crossfade') => masterSettings({ position, mode });
+  assert.equal(pairOnAir(at(0)), 'left');
+  assert.equal(pairOnAir(at(0.49)), 'left');
+  assert.equal(pairOnAir(at(0.5)), 'right');
+  assert.equal(pairOffAir(at(1), 'left'), true, 'faded fully to Right: Left cannot be seen');
+  assert.equal(pairOffAir(at(1), 'right'), false);
+  assert.equal(pairOffAir(at(0), 'right'), true);
+  assert.equal(pairOffAir(at(0.9), 'left'), false, 'part way: both can be seen');
+  assert.equal(pairOffAir(at(1, 'add'), 'left'), false, 'a combine blend shows both at any position');
 });
 
 test('the default look: plain patterns until one is saved, then the saved one, shared settings included', () => {

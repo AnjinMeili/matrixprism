@@ -73,9 +73,12 @@ export function entryParams(value, patternIds = null) {
   return result;
 }
 
-// Hotsave: the key that saves the look on screen, and the playlist it goes
-// to (null: a playlist called Hotsave, made on first use).
-export const HOTSAVE_DEFAULTS = { key: 's', playlistId: null };
+// Hotsave: the key that saves the look on screen, the playlist it goes to
+// (null: a playlist called Hotsave, made on first use), and what it saves
+// (T73): the pair on air, Left, Right, or the whole quad. Add current look
+// and Replace with current look save the same.
+export const HOTSAVE_SCOPES = ['onAir', 'left', 'right', 'quad'];
+export const HOTSAVE_DEFAULTS = { key: 's', playlistId: null, scope: 'onAir' };
 export const HOTSAVE_PLAYLIST_NAME = 'Hotsave';
 // Keys the page already uses: T taps the tempo.
 // Keys the composer uses itself, and what for.
@@ -91,7 +94,8 @@ export function hotsaveSettings(value = HOTSAVE_DEFAULTS) {
   if (RESERVED_KEYS.includes(key)) throw new Error(`${key.toUpperCase()} is taken: ${RESERVED_FOR[key]}.`);
   if (result.playlistId !== null && typeof result.playlistId !== 'string')
     throw new Error('The Hotsave playlist must be a playlist id.');
-  return { key, playlistId: result.playlistId };
+  if (!HOTSAVE_SCOPES.includes(result.scope)) throw new Error(`Hotsave saves one of: ${HOTSAVE_SCOPES.join(', ')}.`);
+  return { key, playlistId: result.playlistId, scope: result.scope };
 }
 
 // The name of an entry saved by Hotsave: when it was saved.

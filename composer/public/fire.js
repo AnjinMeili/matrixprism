@@ -22,6 +22,8 @@
 // which Speed scales), so it looks the same at any frame rate, and catches up
 // at most a few steps after a stall.
 
+import { VARIATION_PARAM } from './seed.js';
+
 const STEP_SECONDS = 1 / 50;
 const MAX_STEPS = 5;
 // Embers alive at once on a panel 64 wide; more on a wider one.
@@ -235,6 +237,6 @@ export const FIRE_PATTERN = {
   audio: 'A 2D flame simulation after Fire2012: heat rises, cools and sways; the bass feeds the base and each beat flares it',
   audioReactive: true,
   controls: [],
-  params: FIRE_PARAMS,
+  params: [...FIRE_PARAMS, VARIATION_PARAM],
   createInstance: (width, height, random = Math.random) => new Fire2D(width, height, random),
 };

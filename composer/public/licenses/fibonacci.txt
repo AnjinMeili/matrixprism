@@ -5,7 +5,13 @@ Branch: aurora
 Revision: 5f8dd395f5a8f62d169463d125ee5b102b526611
 Repository license: GNU GPL version 3; see gpl-3.0.txt.
 
-Adapted files:
+Also adapted, from https://github.com/jasoncoon/fibonacci128-touch-demo
+(GPL-3.0), branch f128-one-inch, revision
+1dd4217040166e19708087867f5fa2bab6e4fc4c:
+  fibonacci128-touch-demo/PatternPhyllotaxisBloom.h (Phyllotaxis Bloom),
+  created by Claude (Anthropic) for Anjin, who committed it there.
+
+Adapted files (fibonacci128-touch-aurora):
   fibonacci128/PatternFibonacciSpiral.h (Fibonacci Bloom and Chase)
   fibonacci128/Patterns.h (Electric Mandala)
   fibonacci128/PatternSublime.h (Radial Fire)

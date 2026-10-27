@@ -291,20 +291,33 @@ pattern-change crossfades; overlays are not affected.
 
 ## Playlists
 
-The **Playlist** view manages playlists of saved looks. An entry stores:
+The **Playlist** view manages playlists of saved looks. An entry is the look
+of **one pair**, or of **the whole quad** (T73), as Hotsave's **Saves**
+setting chooses:
 
-- the layer A pattern;
-- the mixer state: whether it is on, the layer B pattern, the blend and the
-  amount;
-- both layers' transforms: shape, region, outline and size;
-- each layer's Pattern settings;
+- each input's pattern, Pattern settings and variation (T72), brightness,
+  gamma, hue and shape;
+- the pair's blend and amount (both pairs' for the whole quad);
 - the look: hue, speed, palette and palette cycling, key colours, flock
   count, dot size, Sparkles and Spectrum Lab's settings;
 - how long to show it (1 to 3600 seconds), and an optional name.
 
-Brightness, gamma and frame rate are not kept: they suit the panel, not the
-look. Entries saved before 2026-10-16 keep only the patterns, mixer and
-shapes, and leave the rest as it is when shown.
+**Plays on** chooses the pair that **Show now** and **Play** load entries
+into: Left or Right. A look saved on Left can come back on Right. That suits
+working with the quad: fade the main to one pair, set up the other off air,
+then blend back.
+- **A playlist never moves the main.** A whole-quad entry fills all four
+  inputs and both pairs, and leaves the main where it is.
+- **Loaded into the pair off air,** an entry leaves the look settings (hue,
+  speed, palette) as they are, since they would change the pair on air too.
+  A note says so.
+
+The main's brightness, gamma and frame rate are not kept: they suit the
+panel, not the look. Entries saved before the quad (one pair's patterns,
+mixer and shapes, and since 2026-10-16 their settings and look) still load,
+into the pair chosen; what they did not keep stays as it is. Entries are
+saved in a versioned format that also holds what cue lists will need (T76):
+options for one moment, a moment tag, and a place in bars.
 
 To build one, press **New**, set the screen up the way you want it using the
 pattern picker and the Mixer, and press **Add current look**. Each entry
@@ -324,13 +337,41 @@ export or import yet. Up to 50 playlists of 200 entries each.
 ### Hotsave
 
 Press **S** anywhere on the page, except while typing in a field, to add the
-look on screen to a playlist as a new entry, named for the time ("Hotsave
-21:04:17") and keeping everything an entry keeps. It goes to a playlist
+look on screen to a playlist as a new entry, named for the time and what it
+holds ("Hotsave 21:04:17 (Left, on air)") and keeping everything an entry
+keeps. **Saves** chooses what: the pair on air (Left until the main is past
+half way), Left, Right, or the whole quad. It goes to a playlist
 called **Hotsave**, made on first use, or to another chosen under **Save
 to** in the Playlist view's Hotsave panel. The key can be changed there to
 any letter or digit except T, which taps the tempo. A line under the
 preview confirms each save. Whatever is playing carries on; the entries can
 be renamed, retimed or removed like any other.
+
+### Cue lists
+
+A **cue list** (T76) is a playlist that belongs to a track and is named by it,
+"Artist – Title". Make one with **New cue list**; it is marked ♪ in the menu.
+**Find** narrows the menu by part of a name, artist or title, and Enter opens
+the first match.
+
+- **Cues are placed by bar.** Each cue is placed at a bar of the track, from
+  1, not timed in seconds. **Add current look as a cue** places it 16 bars
+  after the last.
+- **Go** on the track's first downbeat starts the list on the beat clock. Each
+  cue shows as the track reaches its bar, on the pair Plays on names.
+- **Next** and **Back** move to the next or previous cue on the next bar line.
+  The cues after it follow from there, for when the DJ is ahead of or behind
+  the plan.
+- **Hold** stops the list where it is, as when the DJ loops; press it again to
+  go on.
+- **The status line** gives the bar and beat in the track, the cue showing,
+  and the bars to the next.
+- **On MIDI:** Go, Next, Back and Hold can be learned onto pads in the
+  Monitor's MIDI panel, so they can sit on the DJ's controller.
+
+A cue list follows the composer's beat clock, so it is only as right as the
+tempo. Set the tempo, or tap it, before Go. While a cue list plays, the
+randomizer and Auto cycle wait, as for a playlist.
 
 ## Randomizer
 
@@ -491,6 +532,7 @@ Table_Mark_Estes69 Arduino sketch. The code lives in its own directory,
 | `effects.js` | The ported effect functions, under their original names |
 | `audio-effects.js` | The audio-driven effect functions |
 | `decorations.js` | The occasional overlays drawn over a pattern |
+| `settings.js` | The settings every pattern in the group shares (T71) |
 | `index.js` | The pattern table, keyed by the sketch's pattern numbers |
 | `NOTICE.md` | Provenance, licence and known differences from the sketch |
 
@@ -519,6 +561,21 @@ same pattern looks different each time it is selected, and it re-rolls after
 about two simulated minutes. Patterns step at the sketch's own frame rate,
 which is low (2 to 14 frames per second for most); the Speed slider scales
 it. Hue shift, the mixer and overlays apply as for other patterns.
+
+**Settings (T71).** Every Mark Estes pattern has the same nine Pattern
+settings, built on what each run rolls:
+- **Numbers, which Follows can drive:** Speed, Fade, Paleness, Colour
+  shift and Drift. They change the rolled value rather than replace it, so
+  at their defaults a pattern draws exactly as before.
+- **Choices:** Mirror, Wind, Decoration and Fade colour. On Random they keep
+  each run's roll; otherwise they hold through every re-roll, and a fixed
+  mirror applies even to a pattern that never mirrors.
+
+Not every setting reaches every pattern. Drift does nothing where a pattern
+keeps its centre in the middle, as most audio patterns do. Paleness does
+nothing where an effect never reads it. The test lists which patterns each
+setting reaches. The mirrors marked "(square panels)" do nothing on a panel
+that is not square, as in the sketch.
 
 ## AuroraDrop patterns
 
@@ -552,6 +609,35 @@ setting. Hue shift, the mixer, layer shapes and overlays apply as usual.
 Most of AuroraDrop's files carry the MIT notice from Aurora and are ported
 under it. Nine pattern files carry no notice and are left out; `NOTICE.md`
 lists them.
+
+## Visualizer App patterns
+
+The **Visualizer App** group holds visualisations ported from visualizer-app,
+Spotify's 2013 demo of the Audio API in its desktop client (BSD 3-Clause),
+and is open for more. The code is in `public/patterns/visualizer-app/`:
+
+| File | Contents |
+|------|----------|
+| `runtime.js` | The 31 bands the originals were fed, the colour by frequency, a small canvas that composites as a browser's 2D canvas does, and the 60 Hz frame loop |
+| `multiband2.js` | **Bars 2**: the left channel's bars up from the centre and the right's down, coloured by frequency, behind white stepped outlines |
+| `raymarching.js` | **Raymarching**: a flight through a lattice of beams; its shader, and the clocks, colours and hits it is driven by |
+| `beatdetection-helper.js` | The original beat detector, used by Raymarching |
+| `julia.js` | **Julia Flow**, created by Claude, not ported: a Julia set morphing as its constant travels the edge of the Mandelbrot set |
+| `index.js` | The picker entries |
+| `NOTICE.md` | Provenance, the licence, what is left out, the audio mapping, and differences |
+
+All draw at the panel's own resolution. Raymarching has settings: Motion
+(Flow, where a hit surges the flight and eases off, or Jump, the original's
+leap ahead), Surge, and Hits from (the original's detector, or the
+composer's beat, bars and high hits). Julia Flow has Zoom, Spin (either way), Detail (iterations), Colour
+shift, Colour speed, Colour bands, Segments (mirrored wedges, as a
+kaleidoscope) and Surge: each beat speeds its morph and eases off, the bass pushes it into
+finer filaments, and it takes its colours from the palette and hue.
+
+Five more of the demo's visualisations were ported and tried, and left out:
+Wave - Simple, Bars 1, Globe Normals, Wave - Interpolated and Simple beat
+detection (in the history at `d70f2dd`). The Boids Test was never ported, as
+its code came from a repository with no licence.
 
 ## Playing media
 
@@ -845,10 +931,37 @@ sliders, checkboxes or menus, each with a note on hover, and **Reset to
 defaults**. They are kept for each pattern, so Tunnel keeps its spin while
 Plasma keeps its scale. When the mixer's layer B is another pattern, its
 settings are shown too. The defaults are what the patterns drew before they
-had settings. So far the shader patterns below have them, all but Panel
-Range; the ported patterns (Aurora, Fibonacci, Mark Estes, AuroraDrop) and
-the panels of their own (Spectrum Lab, Media Player) do not yet. Playlists
+had settings. So far they are on the shader patterns below (all but Panel
+Range), the Mark Estes patterns (nine shared settings, see "Mark Estes
+patterns"), Fire, Spectrum Flock, Aurora Bounce, Raymarching and Julia
+Flow. The other ported patterns (Aurora, Fibonacci, AuroraDrop, Bars 2) and
+the panels of their own (Spectrum Lab, Media Player) do not have them yet. Playlists
 and the randomizer do not keep them.
+
+**Variation.** A pattern that rolls dice (the Mark Estes and AuroraDrop
+patterns, Fire, Spectrum Flock, and several Aurora and Fibonacci ports) shows
+the number of the variation on screen, under **Variation**:
+- **New** rolls another, and **Back** returns to the one before.
+- **Keep** holds it. A Mark Estes pattern then stops re-rolling after its
+  dwell, and the variation is saved with the pattern's settings.
+- **Return** goes back to the settings and variation kept or loaded last, so
+  after trying things there is one press home.
+
+Hotsave and Add current look save the variation on screen even when it is
+not kept, so a saved entry brings the same variation back. A variation is
+the roll of the dice (rates, sizes, mirrors, colours), not a recording: with
+live music an audio pattern still follows the music.
+
+**Follows.** Under each slider, **Follows** lets the setting follow the
+music, and **Amount** says how far and which way (-100% to +100% of the
+slider's range). The slider's value is where it rests; each frame the setting
+moves from there by the source, held within its range. Sources: **Lows**,
+**Mids**, **Highs**, **Level**, **Beat** (a pulse that decays), **High hits**,
+**Key** (the Camelot number round the wheel, which suits a colour setting)
+and **Bar** (where in the bar of four beats). Follows are saved with the
+pattern's settings and Reset clears them. They are set here, in the Patterns
+view; the Mixer's compact strip leaves them out, but a follow set here drives
+the pattern on any input.
 
 | Pattern | Audio response |
 | --- | --- |
@@ -1110,8 +1223,10 @@ are translated directly (FastLED 3.5.0).
 
 ### Fibonacci128 adaptations and palettes
 
-Four additional native-resolution patterns adapt the **aurora** branch of
-[fibonacci128-touch-aurora](https://github.com/AnjinMeili/fibonacci128-touch-aurora/tree/5f8dd395f5a8f62d169463d125ee5b102b526611):
+Five additional native-resolution patterns: four adapt the **aurora** branch of
+[fibonacci128-touch-aurora](https://github.com/AnjinMeili/fibonacci128-touch-aurora/tree/5f8dd395f5a8f62d169463d125ee5b102b526611),
+and Phyllotaxis Bloom, created by Claude, comes from the **f128-one-inch**
+branch of [fibonacci128-touch-demo](https://github.com/jasoncoon/fibonacci128-touch-demo/blob/1dd4217040166e19708087867f5fa2bab6e4fc4c/fibonacci128-touch-demo/PatternPhyllotaxisBloom.h):
 
 | Pattern | Behaviour |
 | --- | --- |
@@ -1119,10 +1234,12 @@ Four additional native-resolution patterns adapt the **aurora** branch of
 | Fibonacci Chase | Staggered pulses travel along golden-angle arms; arm counts change every twelve seconds |
 | Electric Mandala | Temporally smoothed, mirrored noise with organic reversing rotation and changing drift/scale |
 | Radial Fire | Stateful cooling, sparks and heat transport from the perimeter towards the centre, with angular noise |
+| Phyllotaxis Bloom | Hues stepped by the golden angle, as sunflower seeds are, and a 5-arm and an 8-arm wave at Fibonacci-ratio speeds meeting in drifting, white-tipped bright nodes; created by Claude |
 
 These run on the same fixed simulation clock as the Aurora ports, without
 audio modulation. Bloom and Chase generate native golden-angle points instead
-of magnifying a 128-LED picture; dot sizing also applies to them. Mandala and
+of magnifying a 128-LED picture; dot sizing also applies to them, and to
+Phyllotaxis Bloom. Mandala and
 Fire are full-field effects, so dot size does not alter them.
 
 **Ported pattern look** offers the original pattern colours, FastLED Rainbow,

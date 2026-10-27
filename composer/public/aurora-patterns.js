@@ -3,6 +3,7 @@
 // Copyright (c) 2014 Jason Coon, Daniel Shiffman, Noel Bundy,
 // Stefan Petrick, and (c) 2008 Windell H Oskay. MIT licensed.
 // Bounce's settings and its response to audio are added here (T54).
+import { VARIATION_PARAM } from './seed.js';
 import {
   AURORA_SIZE, AuroraBuffer, byte, sin8, cos8, mapsin8, mapcos8,
   beatsin8, beatcos8, quadwave8, palette, inoise8,
@@ -846,6 +847,11 @@ const definitions = [
   ['wave', 'Wave', Wave, 'Quadratic waves with random orientation and optional reflection'],
 ];
 
+// Patterns that never draw from their random generator (measured, T72), so
+// have no Variation to keep.
+const NO_DICE = new Set(['cube', 'incremental-drift', 'incremental-drift-rose', 'pendulum-wave', 'radar', 'spiral',
+  'spiro', 'swirl']);
+
 export const AURORA_PATTERNS = definitions.map(([id, name, Pattern, description, extra = {}]) => ({
   id: `aurora-${id}`,
   name: `Aurora ${name}`,
@@ -853,4 +859,5 @@ export const AURORA_PATTERNS = definitions.map(([id, name, Pattern, description,
   controls: Pattern === Flock ? ['aurora', 'flock'] : ['aurora'],
   createInstance: (width = SIZE, height = SIZE, random = Math.random) => new Pattern(random, width, height),
   ...extra,
+  ...(NO_DICE.has(id) ? {} : { params: [...(extra.params ?? []), VARIATION_PARAM] }),
 }));

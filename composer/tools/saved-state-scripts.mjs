@@ -16,7 +16,8 @@ export const SNAPSHOT = `(() => {
   const label = (el) => (el.labels?.[0]?.textContent || el.getAttribute('aria-label') || el.title || '').replace(/\\s+/g, ' ').trim().slice(0, 60);
   const controls = {};
   for (const el of document.querySelectorAll('input, select, textarea')) {
-    if (['file', 'password', 'button', 'submit', 'reset', 'hidden'].includes(el.type)) continue;
+    // A control marked data-not-saved, such as a search box, is not a setting.
+    if (['file', 'password', 'button', 'submit', 'reset', 'hidden'].includes(el.type) || el.dataset.notSaved !== undefined) continue;
     controls[name(el)] = { type: el.type || el.tagName.toLowerCase(), label: label(el),
       value: el.type === 'checkbox' || el.type === 'radio' ? el.checked : el.value,
       shown: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length), disabled: el.disabled };
@@ -30,7 +31,8 @@ export const CHANGE_ALL = `(async () => {
   const changed = [];
   const never = new Set(['host', 'receiver-list']);
   for (const el of [...document.querySelectorAll('input, select, textarea')]) {
-    if (!el.isConnected || el.disabled || never.has(el.id) || ['file', 'password', 'button', 'submit', 'reset', 'hidden'].includes(el.type)) continue;
+    if (!el.isConnected || el.disabled || never.has(el.id) || el.dataset.notSaved !== undefined ||
+      ['file', 'password', 'button', 'submit', 'reset', 'hidden'].includes(el.type)) continue;
     if (el.type === 'checkbox') el.checked = !el.checked;
     else if (el.type === 'radio') { if (el.checked) continue; el.checked = true; }
     else if (el.tagName === 'SELECT') {

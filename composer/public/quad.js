@@ -18,8 +18,9 @@
 //   pattern with no effects, Left shows A alone, the master shows Left, and
 //   the shared settings are their defaults.
 //
-// Settings saved before the quad mixer, and playlist entries and Hotsaves
-// made for one pair, load into Left; Right stays as it is.
+// Settings saved before the quad mixer load into Left; Right stays as it is.
+// Playlist entries and Hotsaves hold a pair or the whole quad (look actions,
+// below) and load into either pair.
 import { BLEND_MODES, blendModeIndex } from './mixer.js';
 import { SHAPE_DEFAULTS, shapeSettings } from './shape.js';
 import { QUANTIZE } from './tempo.js';
@@ -212,35 +213,123 @@ export function quadFromSettings(settings, patterns = []) {
   }, patterns);
 }
 
-// A whole look from a playlist entry or Hotsave. Entries made for one pair
-// (patternId, mixer, shapes, and since T38 look and params) load into Left;
-// Right, the master and, where the entry has none, the shared settings stay
-// as they are in `current`. Entries made for the quad mixer hold `quad` and
-// `shared` and are used whole.
-export function lookFromEntry(entry, current, patterns = []) {
-  if (isObject(entry.quad)) return wholeLook({ ...entry.quad, shared: entry.shared ?? current.shared }, patterns);
-  const params = isObject(entry.params) ? entry.params : {};
-  const mixer = isObject(entry.mixer) ? entry.mixer : {};
-  const shapes = isObject(entry.shapes) ? entry.shapes : {};
-  const keep = (id) => current.inputs[id];
-  const input = (id, patternId, shape) => ({
-    ...keep(id), patternId,
-    // An entry without parameters leaves an input's own as they were if its
-    // pattern is the same; a new pattern starts from its defaults.
-    params: params[patternId] ?? (patternId === keep(id).patternId ? keep(id).params : {}),
-    shape: shape ?? keep(id).shape,
-  });
+// ---------- Look actions: what a playlist entry shows (T73) ----------
+//
+// An entry's look is a pair (two inputs and the pair's mix) or the whole quad
+// (four inputs and both pairs), with the shared look settings it was saved
+// with. A pair look loads into either pair. An input in a look holds its
+// pattern and whatever else it was saved with; what it does not hold stays
+// as it is on the input it loads into, so entries saved before the quad keep
+// their meaning. Loading never moves the main.
+
+const inputPatch = (value, patternIds) => {
+  if (!isObject(value)) throw new Error('An input in a look must be an options object.');
+  if (typeof value.patternId !== 'string' || (patternIds && !patternIds.includes(value.patternId)))
+    throw new Error(`Unknown look pattern: ${value.patternId}`);
+  const patch = { patternId: value.patternId };
+  if (value.params !== undefined) {
+    if (!isObject(value.params)) throw new Error('Input Pattern settings must be an options object.');
+    patch.params = JSON.parse(JSON.stringify(value.params));
+  }
+  if (value.shape !== undefined) patch.shape = shapeSettings(value.shape);
+  if (value.brightness !== undefined) {
+    if (!inRange(value.brightness, INPUT_BRIGHTNESS_RANGE)) throw new Error('Input brightness is out of range.');
+    patch.brightness = value.brightness;
+  }
+  if (value.gamma !== undefined) {
+    if (!inRange(value.gamma, INPUT_GAMMA_RANGE)) throw new Error('Input gamma is out of range.');
+    patch.gamma = value.gamma;
+  }
+  if (value.hue !== undefined) {
+    if (value.hue !== null && !inRange(value.hue, [0, 1])) throw new Error('Input hue is out of range.');
+    patch.hue = value.hue;
+  }
+  return patch;
+};
+
+// A look action, checked: { kind: 'look', scope: 'pair', inputs: [first,
+// second], pair, shared? } or { kind: 'look', scope: 'quad', inputs: { a, b,
+// c, d }, pairs: { left, right }, master?, shared? }. The master is kept as
+// a record of the save and never applied.
+export function lookAction(value, patternIds = null) {
+  if (!isObject(value) || value.kind !== 'look') throw new Error('A look action must be an options object of kind look.');
+  const shared = value.shared === undefined ? {} : { shared: lookSettings(value.shared) };
+  if (value.scope === 'pair') {
+    if (!Array.isArray(value.inputs) || value.inputs.length !== 2) throw new Error('A pair look holds two inputs.');
+    return { kind: 'look', scope: 'pair', inputs: value.inputs.map((input) => inputPatch(input, patternIds)),
+      pair: pairSettings(value.pair), ...shared };
+  }
+  if (value.scope === 'quad') {
+    if (!isObject(value.inputs) || !isObject(value.pairs)) throw new Error('A quad look holds four inputs and two pairs.');
+    return {
+      kind: 'look', scope: 'quad',
+      inputs: Object.fromEntries(INPUT_IDS.map((id) => [id, inputPatch(value.inputs[id], patternIds)])),
+      pairs: Object.fromEntries(PAIR_IDS.map((id) => [id, pairSettings(value.pairs[id])])),
+      ...(value.master === undefined ? {} : { master: masterSettings(value.master) }),
+      ...shared,
+    };
+  }
+  throw new Error(`Unknown look scope: ${value.scope}`);
+}
+
+// Which pair the main shows most of: Left below half way, Right from it on.
+export function pairOnAir(master) {
+  return master.position < 0.5 ? 'left' : 'right';
+}
+
+// Whether a pair cannot be seen on the main: a transition faded fully to the
+// other pair. A combine blend shows both pairs at any position.
+export function pairOffAir(master, pairId) {
+  if (BLEND_MODES[blendModeIndex(master.mode)].kind !== 'transition') return false;
+  return master.position === (pairId === 'left' ? 1 : 0);
+}
+
+// The look action for one pair of a whole look, or for the whole quad.
+export function pairLookOf(look, pairId) {
+  const [first, second] = PAIRS[pairId];
+  return {
+    kind: 'look', scope: 'pair', inputs: [look.inputs[first], look.inputs[second]].map((input) => ({ ...input })),
+    pair: { ...look.pairs[pairId] }, shared: look.shared,
+  };
+}
+
+export function quadLookOf(look) {
+  return {
+    kind: 'look', scope: 'quad',
+    inputs: Object.fromEntries(INPUT_IDS.map((id) => [id, { ...look.inputs[id] }])),
+    pairs: { left: { ...look.pairs.left }, right: { ...look.pairs.right } },
+    master: { ...look.master }, shared: look.shared,
+  };
+}
+
+// An input after a look's input patch: what the patch does not hold stays.
+// Without saved settings, the input keeps its own if the pattern is the
+// same, and a new pattern starts from its defaults.
+function patchedInput(base, patch) {
+  return {
+    ...base,
+    ...patch,
+    params: patch.params ?? (patch.patternId === base.patternId ? base.params : {}),
+    shape: patch.shape ?? base.shape,
+  };
+}
+
+// The whole look after a look action: a pair look goes into `pair`, a quad
+// look fills all four inputs and both pairs. The main always stays as it is.
+// The shared look settings are applied only when `shared` is true and the
+// action holds them.
+export function lookFromAction(action, current, { pair = 'left', shared = true } = {}, patterns = []) {
+  const inputs = { ...current.inputs };
+  const pairs = { ...current.pairs };
+  if (action.scope === 'quad') {
+    for (const id of INPUT_IDS) inputs[id] = patchedInput(current.inputs[id], action.inputs[id]);
+    for (const id of PAIR_IDS) pairs[id] = action.pairs[id];
+  } else {
+    PAIRS[pair].forEach((id, i) => { inputs[id] = patchedInput(current.inputs[id], action.inputs[i]); });
+    pairs[pair] = action.pair;
+  }
   return wholeLook({
-    inputs: {
-      ...current.inputs,
-      a: input('a', entry.patternId, shapes.a),
-      b: input('b', mixer.patternId ?? keep('b').patternId, shapes.b),
-    },
-    pairs: {
-      ...current.pairs,
-      left: pairFromMixer(mixer),
-    },
-    master: current.master,
-    shared: entry.look ?? current.shared,
+    inputs, pairs, master: current.master,
+    shared: shared && action.shared ? action.shared : current.shared,
   }, patterns);
 }

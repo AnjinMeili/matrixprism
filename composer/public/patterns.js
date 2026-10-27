@@ -8,6 +8,7 @@ import { FIRE_PATTERN } from './fire.js';
 import { SPECTRUM_FLOCK_PATTERN } from './spectrum-flock.js';
 import { MARK_ESTES_PATTERNS } from './patterns/mark-estes/index.js';
 import { AURORADROP_PATTERNS } from './patterns/auroradrop/index.js';
+import { VISUALIZER_APP_PATTERNS } from './patterns/visualizer-app/index.js';
 
 // Shader patterns define `vec3 render()`; Aurora ports use stateful RGB buffers.
 // The shared prelude provides audio uniforms, palette, noise and helpers.
@@ -618,4 +619,5 @@ vec3 render() {
   ...FIBONACCI_PATTERNS,
   ...MARK_ESTES_PATTERNS,
   ...AURORADROP_PATTERNS,
+  ...VISUALIZER_APP_PATTERNS,
 ];

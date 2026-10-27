@@ -3,7 +3,9 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { MAX_FRAME_BYTES, RelayApi, StreamSession, fileAnswer } from '../lib/relay-core.js';
+import {
+  MAX_FRAME_BYTES, RelayApi, StreamSession, fetchMatrixInfo, fileAnswer, receiverAddress, receiverProblem,
+} from '../lib/relay-core.js';
 import { answerWithNodeHandler } from '../lib/fetch-adapter.js';
 import { recordingRequest } from '../lib/recording.js';
 
@@ -121,4 +123,51 @@ test('the recording handler works through the adapter: the app\'s own page may s
   assert.equal((await post({})).status, 201);
   const refused = await post({ origin: 'https://evil.example' });
   assert.equal(refused.status, 403);
+});
+
+// #28: on macOS a lookup for any family waited five seconds for an IPv6
+// answer the receiver never gives, longer than the size is waited for.
+test('a receiver is looked up for IPv4 first, and its size read from that address', async () => {
+  const asked = [];
+  const lookupImpl = async (host, options = {}) => {
+    asked.push([host, options.family ?? 0]);
+    if (host === 'v6only.local' && options.family === 4) throw Object.assign(new Error('none'), { code: 'ENOTFOUND' });
+    return host === 'v6only.local' ? { address: 'fe80::1', family: 6 } : { address: '192.0.2.50', family: 4 };
+  };
+  assert.equal(await receiverAddress('panel.local', lookupImpl), '192.0.2.50');
+  assert.deepEqual(asked, [['panel.local', 4]], 'IPv4 only, no wait for IPv6');
+  assert.equal(await receiverAddress('v6only.local', lookupImpl), '[fe80::1]', 'any family when there is no IPv4');
+  assert.equal(await receiverAddress('198.51.100.7', lookupImpl), '198.51.100.7', 'an address is used as it is');
+  assert.equal(await receiverAddress('[::1]', lookupImpl), '[::1]');
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    return { ok: true, json: async () => ({ name: 'Panel', leds: { matrix: { w: 64, h: 32 } } }) };
+  };
+  const matrix = await fetchMatrixInfo('panel.local', fetchImpl, lookupImpl);
+  assert.deepEqual(urls, ['http://192.0.2.50/json/info']);
+  assert.equal(matrix.width, 64);
+});
+
+test('what went wrong reading a receiver is said in plain words, the same from Detect and from connecting', async () => {
+  const fail = (error) => fetchMatrixInfo('panel.local', async () => { throw error; }, async () => ({ address: '192.0.2.50', family: 4 }))
+    .then(() => null, (thrown) => thrown.message);
+  assert.equal(await fail(Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })),
+    'no answer within 3 seconds');
+  assert.equal(await fail(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } })),
+    'it refused the connection: is the receiver running?');
+  assert.equal(await fail(Object.assign(new TypeError('fetch failed'), { cause: { code: 'EHOSTUNREACH' } })),
+    'it cannot be reached from this computer');
+  const missing = await fetchMatrixInfo('gone.local', async () => null,
+    async () => { throw Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }); }).catch((e) => e.message);
+  assert.equal(missing, 'the name was not found on the network');
+  assert.equal(receiverProblem(new Error('something else')), 'something else');
+  // A name nobody answers for is given up on after the wait, not ten seconds.
+  const started = Date.now();
+  const silent = await receiverAddress('silent.local', () => new Promise(() => {}), 50).catch((e) => receiverProblem(e));
+  assert.equal(silent, 'the name was not found on the network within 3 seconds');
+  assert.ok(Date.now() - started < 1000);
+  const bad = await fetchMatrixInfo('panel.local', async () => ({ ok: false, status: 404 }),
+    async () => ({ address: '192.0.2.50', family: 4 })).catch((e) => e.message);
+  assert.equal(bad, 'it answered HTTP 404');
 });

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PATTERNS } from '../public/patterns.js';
 import {
-  changedParams, formatParam, paramProblems, paramUniforms, paramValue, paramValues, uniformValue,
+  FOLLOW_SOURCES, changedParams, cleanFollows, followValue, followedValues, formatParam, paramProblems,
+  paramUniforms, paramValue, paramValues, uniformValue,
 } from '../public/params.js';
 
 // Pattern parameters (T33 step 1): each pattern declares its own.
@@ -28,7 +29,9 @@ test('every pattern declares its parameters soundly, with defaults on their step
 test('a shader pattern reads every parameter it declares, and none it does not', () => {
   for (const p of PATTERNS.filter((entry) => entry.glsl)) {
     const used = new Set(p.glsl.match(/\bp_[a-zA-Z0-9]+/g) ?? []);
-    const declared = new Set((p.params ?? []).map((param) => `p_${param.id}`));
+    // A parameter marked `state` is read by the pattern's JavaScript state
+    // (createState), not by its shader.
+    const declared = new Set((p.params ?? []).filter((param) => !param.state).map((param) => `p_${param.id}`));
     assert.deepEqual([...used].sort(), [...declared].sort(), p.id);
   }
 });
@@ -99,4 +102,65 @@ test('declaration faults are reported', () => {
     'bad.d: default is not one of the choices',
     'bad.e: unknown type colour',
   ]);
+});
+
+// Follows (#21): number settings that follow the music.
+
+test('follows are kept for number settings only, valid, and only when they differ from Off at 50%', () => {
+  assert.deepEqual(cleanFollows(pattern, {
+    scale: { source: 'lows', amount: 0.33 },
+    count: { source: 'off', amount: 0.5 },
+    grid: { source: 'highs', amount: 1 },
+    gone: { source: 'mids', amount: 1 },
+  }), { scale: { source: 'lows', amount: 0.35 } });
+  assert.deepEqual(followValue({ source: 'nonsense', amount: 7 }), { source: 'off', amount: 1 });
+  assert.deepEqual(followValue({ source: 'key', amount: -0.01 }), { source: 'key', amount: 0 });
+  assert.deepEqual(cleanFollows(pattern, 'junk'), {});
+  // Off with another amount is kept, so the amount survives a reload.
+  assert.deepEqual(cleanFollows(pattern, { scale: { source: 'off', amount: -0.5 } }), { scale: { source: 'off', amount: -0.5 } });
+  // changedParams and paramValues carry them; with none there is no key.
+  assert.deepEqual(changedParams(pattern, { follows: { scale: { source: 'beat', amount: 0.5 } } }),
+    { follows: { scale: { source: 'beat', amount: 0.5 } } });
+  assert.equal('follows' in paramValues(pattern, {}), false);
+  assert.deepEqual(paramValues(pattern, { follows: { count: { source: 'bar', amount: 1 } } }).follows,
+    { count: { source: 'bar', amount: 1 } });
+});
+
+test('a following setting moves from its resting point by source times amount times its range, within it', () => {
+  const state = { audio: { bass: 0.5, mid: 1, treble: 0.25, level: 0, beat: 1, highHit: 0 }, beatPosition: 6, musicalKey: { camelot: { number: 4 } } };
+  const values = paramValues(pattern, { scale: 3, follows: { scale: { source: 'lows', amount: 0.5 } } });
+  // 3 + 0.5 x 0.5 x (8 - 0.5) = 4.875; the resting value is left alone.
+  assert.equal(followedValues(pattern, values, state).scale, 4.875);
+  assert.equal(values.scale, 3);
+  const down = paramValues(pattern, { follows: { scale: { source: 'lows', amount: -0.5 } } });
+  assert.equal(followedValues(pattern, down, state).scale, 3 - 1.875);
+  // Held within the range.
+  const far = paramValues(pattern, { scale: 7, follows: { scale: { source: 'mids', amount: 1 } } });
+  assert.equal(followedValues(pattern, far, state).scale, 8);
+  // Whole steps stay whole: 6 + 0.25 x 0.5 x 11 = 7.375, put on 7.
+  const count = paramValues(pattern, { follows: { count: { source: 'highs', amount: 0.5 } } });
+  assert.equal(followedValues(pattern, count, state).count, 7);
+  // Key: Camelot 4 is 3/12 round; bar: beat 6 is half way through a bar.
+  const key = paramValues(pattern, { scale: 0.5, follows: { scale: { source: 'key', amount: 1 } } });
+  assert.equal(followedValues(pattern, key, state).scale, 0.5 + 0.25 * 7.5);
+  const bar = paramValues(pattern, { scale: 0.5, follows: { scale: { source: 'bar', amount: 1 } } });
+  assert.equal(followedValues(pattern, bar, state).scale, 0.5 + 0.5 * 7.5);
+  // No key, no beat clock, no audio: the resting value.
+  const quiet = followedValues(pattern, key, {});
+  assert.equal(quiet.scale, 0.5);
+  // Off follows nothing; with no follows the same object comes back.
+  const off = paramValues(pattern, { follows: { scale: { source: 'off', amount: -1 } } });
+  assert.equal(followedValues(pattern, off, state).scale, 3);
+  const plain = paramValues(pattern, {});
+  assert.equal(followedValues(pattern, plain, state), plain);
+});
+
+test('every follow source reads 0 to 1 from a frame\'s state', () => {
+  const state = { audio: { bass: 0.2, mid: 0.4, treble: 0.6, level: 0.8, beat: 1, highHit: 0.3 }, beatPosition: -1, musicalKey: { camelot: { number: 12 } } };
+  for (const source of FOLLOW_SOURCES.filter((entry) => entry.read)) {
+    const reading = source.read(state);
+    assert.ok(reading >= 0 && reading <= 1, `${source.id}: ${reading}`);
+  }
+  assert.equal(FOLLOW_SOURCES.find((entry) => entry.id === 'bar').read(state), 0.75);
+  assert.equal(FOLLOW_SOURCES.find((entry) => entry.id === 'key').read(state), 11 / 12);
 });

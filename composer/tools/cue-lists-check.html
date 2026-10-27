@@ -1,0 +1,100 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Cue lists check</title>
+<!-- Loaded by tools/check-cue-lists.mjs in headless Chrome, on real time so
+     the composer's frame clock and beat clock run. Seeds a cue list for a
+     made-up track (cues at bars 1, 3 and 5) on a manual tempo of 120 BPM,
+     opens the composer in a frame, presses Go and times each cue, then tries
+     Hold, Next and Find (T76). -->
+<iframe id="app" width="1200" height="900"></iframe>
+<script type="module">
+const post = (body) => fetch('/result', { method: 'POST', body });
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+try {
+  const cue = (patternId, bars) => ({ version: 2, name: patternId, at: { marker: 'start', bars, beats: 0 },
+    options: [{ moment: null, actions: [{ kind: 'look', scope: 'pair', inputs: [{ patternId }, { patternId: 'bars' }],
+      pair: { enabled: false, mode: 'crossfade', amount: 0.5 } }] }] });
+  localStorage.setItem('matrix-companion-settings', JSON.stringify({
+    audioSource: 'none',
+    tempo: { mode: 'manual', source: 'bass', manualBpm: 120, quantize: 'off', tap: 'beat' },
+    fadeSeconds: 0,
+    playlists: { lists: [
+      { id: 'warm', name: 'Warm-up', entries: [] },
+      { id: 'cue', track: { artist: 'Test Artist', title: 'Night Drive' },
+        entries: [cue('kaleido', 0), cue('tunnel', 2), cue('stars', 4)] },
+    ], activeId: 'warm', pair: 'left' },
+  }));
+  const frame = document.getElementById('app');
+  frame.src = '/index.html';
+  await new Promise((resolve) => frame.addEventListener('load', resolve, { once: true }));
+  const win = frame.contentWindow, doc = frame.contentDocument, $ = (id) => doc.getElementById(id);
+  for (let i = 0; i < 100 && !$('playlist-select'); ++i) await wait(50);
+  const saved = () => JSON.parse(win.localStorage.getItem('matrix-companion-settings'));
+  const result = {};
+  // Find: part of the artist's name, then Enter, opens the cue list.
+  const find = $('playlist-find');
+  find.value = 'artist';
+  find.dispatchEvent(new win.Event('input'));
+  result.found = [...$('playlist-select').options].map((option) => option.textContent);
+  find.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Enter' }));
+  await wait(100);
+  result.opened = { active: saved().playlists.activeId, button: $('playlist-play').textContent,
+    status: $('playlist-status').textContent };
+  // Go, then time each change of A's pattern and read the bar it came on.
+  const changes = [];
+  let last = saved().patternId;
+  // Go once the beat clock runs: until then the page says to press again.
+  let presses = 0;
+  while ($('playlist-play').textContent !== 'Stop' && presses < 100) {
+    $('playlist-play').click();
+    presses += 1;
+    if ($('playlist-play').textContent !== 'Stop') await wait(100);
+  }
+  result.presses = presses;
+  const started = performance.now();
+  while (performance.now() - started < 9500) {
+    await wait(20);
+    const now = saved().patternId;
+    if (now !== last) {
+      // The status line is redrawn a few times a second: read it a moment on.
+      const change = { pattern: now, seconds: (performance.now() - started) / 1000 };
+      setTimeout(() => { change.status = $('playlist-status').textContent; }, 350);
+      changes.push(change);
+      last = now;
+    }
+  }
+  result.changes = changes;
+  // Hold: the bar stops; Hold again: it goes on.
+  $('playlist-hold').click();
+  await wait(300);
+  const heldAt = $('playlist-status').textContent;
+  await wait(1500);
+  result.hold = { before: heldAt, after: $('playlist-status').textContent, pressed: $('playlist-hold').getAttribute('aria-pressed') };
+  $('playlist-hold').click();
+  await wait(1500);
+  result.released = $('playlist-status').textContent;
+  // Back: the cue before, on the next bar line, not at once.
+  const beforeBack = saved().patternId;
+  $('playlist-back').click();
+  await wait(60);
+  const atOnce = saved().patternId;
+  let landed = null;
+  const pressed = performance.now();
+  while (performance.now() - pressed < 2600 && !landed) {
+    await wait(20);
+    if (saved().patternId !== beforeBack) landed = { pattern: saved().patternId, seconds: (performance.now() - pressed) / 1000 };
+  }
+  if (landed) {
+    await wait(350);
+    landed.status = $('playlist-status').textContent;
+  }
+  result.back = { beforeBack, atOnce, landed };
+  // Stop: no more cues.
+  $('playlist-play').click();
+  await wait(100);
+  result.stopped = { button: $('playlist-play').textContent, status: $('playlist-status').textContent };
+  await post(JSON.stringify(result, null, 1));
+} catch (error) {
+  await post(`FAIL ${error.stack}`);
+}
+</script>

@@ -59,6 +59,11 @@ The builds are not yet signed, so each system asks once before the first run:
 - **Windows:** SmartScreen says the publisher is unknown. Choose More info,
   then Run anyway.
 - **Linux:** check the download against `SHA256SUMS` on the release page.
+  Install the `.deb` with `sudo apt install ./MatrixPrism-<version>-<arch>.deb`,
+  which also fetches the libraries it needs; `dpkg -i` does not, and the app
+  then stops for want of one (`sudo apt -f install` puts that right). The
+  AppImage needs those libraries installed already. In a virtual machine, a
+  bridged network lets the app find receivers on the LAN.
 
 FFmpeg is a separate install, needed only for Record and Go live (on a Mac,
 `brew install ffmpeg`).
@@ -105,9 +110,10 @@ The READMEs of the two parts have the options and the details.
 <img src="docs/media/tile-desktop-app.png" alt="Desktop app: macOS, Windows, Linux" width="256">
 </p>
 
-- 144 patterns: audio-reactive shaders, a configurable spectrum analyser, a
+- 148 patterns: audio-reactive shaders, a configurable spectrum analyser, a
   beat graph after BpmDj, a media player for images, GIFs and video, and ports of the Aurora,
-  Fibonacci128, Table Mark Estes and AuroraDrop pattern sets;
+  Fibonacci128, Table Mark Estes and AuroraDrop pattern sets and of a 2013
+  visualizer demo;
 - a quad mixer: inputs A and B mix to Left, C and D to Right, and the main
   mixes Left and Right, with crossfades and blends, and per-input shapes
   and regions with hard or soft borders;

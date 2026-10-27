@@ -1,7 +1,7 @@
 # MatrixPrism composer: design specification
 
-Last updated: 2026-10-15. Describes the code on the `audio-layers` branch
-(T30: the high band and sparkles), from `main`.
+Last updated: 2026-10-27. Describes the code on `main`, with Follows, the
+Mark Estes settings, variations, pair entries and cue lists (T70 to T76).
 
 The composer renders patterns in a browser and streams them as DDP to an
 LED receiver: WLED, the project's own `matrix-dmx` (in `receiver/`), or any
@@ -159,9 +159,10 @@ Every pattern is an object in `PATTERNS` (`patterns.js`):
 | Property | Meaning |
 |----------|---------|
 | `id`, `name`, `audio` | Stable id (stored in settings), picker label, description |
-| `group` | Optional picker heading (`Mark Estes`, `AuroraDrop`) |
+| `group` | Optional picker heading (`Mark Estes`, `AuroraDrop`, `Visualizer App`) |
 | `glsl` | Shader patterns: GLSL that defines `vec3 render()`; compiled with the shared prelude in `patterns.js` |
-| `createInstance(width, height)` | Stateful patterns: returns an object with `renderFrame(state)` that returns `width × height × 3` RGB bytes, top row first |
+| `createInstance(width, height, random)` | Stateful patterns: returns an object with `renderFrame(state)` that returns `width × height × 3` RGB bytes, top row first. `random` is the generator all its dice come from; the renderer passes a seeded one (`seed.js`, T72) |
+| `createState()`, `stateUniforms` | A shader pattern with state of its own: `createState()` returns an object whose `uniforms(state, params)` steps it and returns this frame's values by name (a number, or three for a `vec3`); `stateUniforms` names them, and the pattern's GLSL declares them. Kept per input as a stateful pattern's instance is (`renderer.js`, `shaderState`) |
 | `controls` | Which control panels to show: `aurora`, `flock`, `spectrum`, `media` |
 | `params` | The pattern's own parameters, shown in Pattern settings and saved per pattern; see below |
 | `manualHue` | Use the manual hue only, not the key-driven hue |
@@ -198,6 +199,10 @@ Patterns view builds its Pattern settings panel from them
 | Number | `{ id, name, min, max, step, default, help }` | Slider | The number | The number |
 | On or off | `{ id, name, type: 'bool', default, help }` | Checkbox | 0 or 1 | `true` or `false` |
 | Choice | `{ id, name, type: 'choice', choices: [{ id, name }], default, help }` | Menu | The choice's index | The choice's id |
+| Variation | `VARIATION_PARAM` from `seed.js`: `{ id: 'variation', type: 'variation', default: 0 }` | Its number, Keep, New, Back, Return | (stateful only) | The kept seed, or 0 |
+
+A shader pattern's parameter marked `state: true` is read by its
+`createState` object (as `uniforms(state, params)`), not by its GLSL.
 
 - **Shader patterns** get a `uniform float p_<id>;` for each, declared for
   them. A count that bounds a loop needs a fixed maximum and an early
@@ -208,6 +213,28 @@ Patterns view builds its Pattern settings panel from them
   differs from its default. Values are clamped and put on their steps when
   read, so a saved value from an older version of a pattern is safe.
 - **Help** is shown on hover.
+- **Follows** (#21): a number setting can follow the music. Saved beside the
+  values as `follows: { <id>: { source, amount } }` (`FOLLOW_SOURCES`,
+  `cleanFollows`), only where it differs from Off at 50%. Each frame
+  `renderPattern` calls `followedValues`, which moves the setting from its
+  resting value by source (0 to 1) times amount (-1 to 1) times its range,
+  held within the range and on whole steps when its steps are whole; shader
+  uniforms, `renderFrame` and `createState` all get the moved values. A
+  pattern following nothing gets the same values as before.
+- **Variation** (T72): a stateful pattern that rolls dice carries
+  `VARIATION_PARAM` (112 do; those that never draw from their generator do
+  not). The renderer makes each instance from a seed, `seededRandom(seed)`:
+  the kept variation, one asked for by `reseed(key, seed)`, or a new one,
+  and `seedOf(key)` reports the seed on screen (a Mark Estes pattern
+  re-rolls from a new seed it draws, and names it). 0, the default, saves
+  nothing and rolls freely; a kept seed holds the variation, makes the
+  instance afresh when it changes (`needsReseed`), and stops a Mark Estes
+  pattern re-rolling. Hotsave and Add current look fill in the seed on
+  screen for a free variation (`withSeed` in `app.js`), so an entry brings
+  the variation back, kept. The page keeps, for each pattern, the seeds it
+  has shown (Back) and an anchor (Return): its settings when its variation
+  was kept or an entry holding it was loaded. A seed brings back the roll,
+  not identical frames: with live music the frames follow the music.
 - **Defaults** are the constants the pattern had before it had parameters,
   so declaring them changes nothing until a value is moved.
 - **Tests** in `test/params.test.js` check every declaration, and that a
@@ -221,16 +248,17 @@ of stalling every frame.
 
 | Family | Count | Where | Notes |
 |--------|-------|-------|-------|
-| Shader patterns | 18 | `patterns.js` | Audio-reactive GLSL |
+| Shader patterns | 19 | `patterns.js` | Audio-reactive GLSL |
 | Spectrum Lab | 1 | `spectrum-plot.js` | Configurable analyser |
 | Beat Graph | 1 | `beat-graph.js` | The music folded by the bar of the beat clock, after BpmDj |
 | Media Player | 1 | `media.js` | Image, animated image or video; one file, or a random one from a folder |
 | Aurora ports | 13 | `aurora-patterns.js`, `aurora-fastled.js` | Native panel resolution; Bounce has its own settings and follows the audio (T54) |
-| Fibonacci ports | 4 | `fibonacci-patterns.js` | Native panel resolution |
-| Mark Estes | 94 | `patterns/mark-estes/` | Sketch's own runtime; 37 audio-driven |
+| Fibonacci ports | 5 | `fibonacci-patterns.js` | Native panel resolution; Phyllotaxis Bloom is Claude's own, from fibonacci128-touch-demo |
+| Mark Estes | 94 | `patterns/mark-estes/` | Sketch's own runtime; 37 audio-driven; nine shared settings on what each run rolls (T71) |
 | AuroraDrop | 9 | `patterns/auroradrop/` | 64 by 64 canvas scaled to the panel |
+| Visualizer App | 3 | `patterns/visualizer-app/` | Two from Spotify's 2013 demo (BSD 3-Clause), Bars 2 on a small canvas at native resolution and Raymarching as a shader with state, and Julia Flow, our own, also a shader with state |
 
-The two ported families each have a `NOTICE.md` with provenance, licence
+The three ported families each have a `NOTICE.md` with provenance, licence
 position and differences from the original.
 
 ## Modules
@@ -247,7 +275,8 @@ In `composer/public/` unless noted.
 | `key-wheel.js` | The Monitor's live Camelot wheel: layout, hit-testing, drawing |
 | `mixer.js` | Blend modes (GLSL and reference), coverage-aware compositing |
 | `shape.js` | Layer shape, region, border, spin and pulse (GLSL and reference) |
-| `playlist.js`, `playlist-controls.js` | Playlist model and player; the manager UI |
+| `playlist.js`, `playlist-controls.js` | Playlist model and player; the manager UI, with cue lists (T76) |
+| `cue-clock.js` | The cue-list clock (T76): cues placed in beats from Go, on the beat clock; Next, Back and Seek on the next bar line; Hold. Pure |
 | `quad-view.js` | The quad mixer's view (T16 step 5): its panes, drawn by the layout base, changing settings through app.js |
 | `channel-tags.js` | A Mixer channel's modifiers as short tags for under its name, each with its full text for hovering (pure; tested) |
 | `layout.js`, `layout-view.js`, `help.js` | The quad mixer's layout as data, its view from components registered by pane type, and the help popover (T16 step 4); not yet used by the page |
@@ -310,11 +339,11 @@ group is replaced by defaults with a message, without discarding the rest.
 | `overlays` | Overlay elements | `overlaySettings()` |
 | `mixer` | `enabled`, `patternId`, `mode`, `amount` | `mixerSettings()` |
 | `shapes` | `a` and `b`, each: `shape`, `region`, `outline`, `width`, `height`, `proportional`, `edge`, `spin`, `spinReverse`, `pulse`, `pulseBeats` | `shapeSettings()` |
-| `playlists` | `lists` of entries, `activeId`, `loop`, `shuffle` | `playlistSettings()` |
+| `playlists` | `lists` of entries, `activeId`, `loop`, `shuffle`, and `pair` (`left` or `right`: where entries show and play, T73). A list with a `track` (`artist`, `title`, and where known `isrc` and `bpm`) is a cue list, named by the track (T76) | `playlistSettings()` |
 | `patternParams` | Each pattern's own parameters that differ from the defaults, by pattern id | `changedParams()` on load (`app.js`) |
 | `receivers` | Each receiver's `brightness`, `gamma` and `maxFps`, by host in lower case; `brightness`, `gamma` and `maxFps` hold the values in use | `receiverSettings()`, `receiverProfile()` |
 | `quad`, `quadLayout`, `defaultLook` | The quad mixer: C, D, Right, the master (shown as the main) and each input's trim and hue (`hue`: null to follow the main's, or 0 to 1) (A, B and Left copied from the one-pair settings before each save); its layout; the look Reset main brings back, or null | `quadFromSettings()`, `layoutSettings()`, `wholeLook()` |
-| `hotsave` | `key` (one letter or digit, not T) and `playlistId` (null: a playlist called Hotsave, made on first use) | `hotsaveSettings()` |
+| `hotsave` | `key` (one letter or digit, not T), `playlistId` (null: a playlist called Hotsave, made on first use), and `scope` (`onAir`, `left`, `right` or `quad`: what Hotsave, Add current look and Replace save, T73) | `hotsaveSettings()` |
 | `randomizer` | `enabled`, `unit` (`seconds`, `beats` or `bars`), `minWait`, `maxWait`, `tracks`; `minSeconds` and `maxSeconds` saved before 2026-10-20 are read as the waits in seconds | `randomizerSettings()` |
 | `tempo` | `mode`, `manualBpm`, `quantize`, `tap` | `tempoSettings()` |
 | `sparkles` | `enabled`, `amount`, `density`, `length`, `shape`, `colour`, `twinkle`, `placement` (anywhere, edges, light, pitch) | `sparkleSettings()` |
@@ -325,15 +354,35 @@ handle of its folder where the browser has a folder picker. The folder's
 contents are not stored: the folder is listed again on each visit, and held in
 memory as `{ path, file }` entries by `app.js`.
 
-A playlist entry holds `name`, `patternId`, `seconds`, `mixer` and `shapes`,
-validated by the same functions. Entries saved since 2026-10-16 also hold
-`look` (`hue`, `speed`, `paletteId`, `paletteCycle`, `keyColours`,
-`flockCount`, `auroraDotSize`, `sparkles`, `spectrumOptions`; checked by
-`lookSettings()`) and `params` (the pattern parameters of layer A's pattern
-and, with the mixer on, layer B's, by pattern id; checked by
-`entryParams()`, then against each pattern's declaration when shown).
-Showing an entry without them leaves those settings as they are. Brightness,
-gamma and frame rate are never kept: they suit the panel, not the look.
+A playlist entry (version 2, T73; `playlistEntry()`) holds:
+- `name`, and its timing: `seconds`, or `at` (`{ marker, index?, bars,
+  beats }`, a place from a marker: start, mixOut, a numbered cue or break).
+  `at` is for cue lists (T76) and not used yet.
+- `options`: one to eight. Each has a `moment` (intro, build, drop, break,
+  outro, or null) and one to eight `actions`. The first option is shown; the
+  others wait for T76.
+- An action is a look (`lookAction()` in `quad.js`), or a kind this version
+  does not know, kept as it is and not shown (laser and DMX are planned):
+  - `{ kind: 'look', scope: 'pair', inputs: [first, second], pair, shared? }`;
+  - or `scope: 'quad'` with `inputs: { a, b, c, d }`, `pairs` and `master`.
+  - An input holds its `patternId` and whatever it was saved with (`params`
+    with its variation, `shape`, `brightness`, `gamma`, `hue`); what it lacks
+    stays as it is on the input it loads into.
+  - `shared` is the look settings (`lookSettings()`).
+- **Loading** (`lookFromAction()`): a pair look goes into the pair
+  `playlists.pair` names, a quad look into all four inputs. The main is
+  never moved; a quad look's `master` is kept as a record only. The shared
+  look settings are applied unless the target pair is off air
+  (`pairOffAir()`: a transition faded fully to the other pair), since they
+  would change the pair on air.
+- **Saving** (`currentLook()` in `app.js`): `pairLookOf()` or
+  `quadLookOf()`, with each input's variation seed filled in from the
+  renderer.
+- **Older entries** (`patternId`, `seconds`, `mixer`, `shapes`, and since
+  2026-10-16 `look` and `params`) are read as a pair look and saved back as
+  version 2. Loaded into Left, they give the look they always did.
+- The main's brightness, gamma and frame rate are never kept: they suit the
+  panel, not the look.
 
 ## Tempo model
 

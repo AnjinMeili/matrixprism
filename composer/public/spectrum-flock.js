@@ -29,6 +29,7 @@
 // a demonstration of the spectrum as an array by frequency, which any pattern
 // can read.
 
+import { VARIATION_PARAM } from './seed.js';
 import { RelativeBands, bandAt, logFrequencies } from './spectrum-bands.js';
 
 const STEP_SECONDS = 1 / 40;
@@ -343,6 +344,6 @@ export const SPECTRUM_FLOCK_PATTERN = {
   audio: 'A flock in which every bird listens to one frequency: its speed, size and brightness follow that pitch, and birds flock with others near in pitch',
   audioReactive: true,
   controls: [],
-  params: SPECTRUM_FLOCK_PARAMS,
+  params: [...SPECTRUM_FLOCK_PARAMS, VARIATION_PARAM],
   createInstance: (width, height, random = Math.random) => new SpectrumFlock(width, height, random),
 };

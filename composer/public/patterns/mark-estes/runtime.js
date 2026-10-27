@@ -9,13 +9,25 @@
 // LEDMatrix primitives its effects draw with. See ./NOTICE.md for provenance.
 import { byte, scale8, sin8, cos8, beatsin8 } from '../../aurora-fastled.js';
 import { checkfancy } from './decorations.js';
+import { SQUARE_ONLY_MIRRORS, TME_DEFAULT_SETTINGS, resolveTmeSettings } from './settings.js';
+import { newSeed, seededRandom } from '../../seed.js';
+
+// The draws the constructor makes before the first roll (hue, the centre and
+// its drift angles). A seeded re-roll skips as many, so a new instance from
+// the seed it names rolls the same (T72).
+const CONSTRUCTOR_DRAWS = 5;
 
 export const div = (a, b) => Math.trunc(a / b);
 const scale8Video = (value, scale) => ((value * scale) >> 8) + (value && scale ? 1 : 0);
 
+// Colour shift (T71): added to every hue while a pattern steps, and 0 at
+// other times. Effects use their hue as an angle too, so the shift goes in
+// here, where it recolours without turning anything.
+let hueShift = 0;
+
 // FastLED hsv2rgb_rainbow.
 export function hsv(hue, saturation = 255, value = 255) {
-  hue = byte(hue);
+  hue = byte(hue + hueShift);
   saturation = byte(saturation);
   value = byte(value);
   const offset8 = (hue & 0x1f) << 3;
@@ -197,6 +209,10 @@ export class TmeRuntime {
     this.flipme = 1;
     this.xcen = 0;
     this.ycen = 0;
+    // The shared settings (settings.js) and this run's rolled paleness.
+    this.settings = TME_DEFAULT_SETTINGS;
+    this.rolledVelo = 0;
+    this.mirrored = false;
   }
 
   // ---------- Arduino and FastLED random ----------
@@ -601,39 +617,53 @@ export class TmeRuntime {
     else this.subtract(half, amount, half);
   }
 
+  // The roll's fade: its kind (0 black, then 1 red, 2 green, 3 blue) and
+  // amount, which the Fade and Fade colour settings may change.
   checkfader() {
-    const coloured = [this.redfado, this.greenfado, this.bluefado];
     const bfade = this.bfade;
     if (bfade === 0 || bfade === 99) return;
-    if (bfade >= 6 && bfade <= 14) coloured[(bfade - 6) % 3].call(this, 16 + 8 * div(bfade - 6, 3));
-    else if (bfade === 100) this.fadeToBlackBy(10);
-    else if (bfade === 101) this.fadeToBlackBy(6);
-    else if (bfade >= 108 && bfade <= 110) coloured[110 - bfade].call(this, 32);
-    else if (bfade >= 118 && bfade <= 120) coloured[120 - bfade].call(this, 8);
-    else this.fadeToBlackBy(8 + (bfade << 3) + 2);
+    let kind = 0, amount;
+    if (bfade >= 6 && bfade <= 14) {
+      kind = 1 + (bfade - 6) % 3;
+      amount = 16 + 8 * div(bfade - 6, 3);
+    } else if (bfade === 100) amount = 10;
+    else if (bfade === 101) amount = 6;
+    else if (bfade >= 108 && bfade <= 110) {
+      kind = 1 + 110 - bfade;
+      amount = 32;
+    } else if (bfade >= 118 && bfade <= 120) {
+      kind = 1 + 120 - bfade;
+      amount = 8;
+    } else amount = 8 + (bfade << 3) + 2;
+    const { fade, fadeColour } = this.settings;
+    if (fadeColour !== null) kind = fadeColour;
+    if (fade !== 1) amount = Math.min(255, Math.round(byte(amount) * fade));
+    if (kind === 0) this.fadeToBlackBy(amount);
+    else [this.redfado, this.greenfado, this.bluefado][kind - 1].call(this, amount);
   }
 
   checkshifty() {
     const lowX = div(this.MIDLX, 4), highX = this.W - 1 - lowX;
     const lowY = div(this.MIDLY, 4), highY = this.H - 1 - lowY;
+    const drift = this.settings.drift;
     if (this.counter % this.shifty === 0) {
-      this.driftx += this.cangle;
+      this.driftx += this.cangle * drift;
       if (this.driftx > highX) {
         this.cangle = -Math.abs(this.cangle);
-        this.driftx += this.cangle;
+        this.driftx += this.cangle * drift;
       }
       if (this.driftx < lowX) {
         this.cangle = Math.abs(this.cangle);
-        this.driftx += this.cangle;
+        this.driftx += this.cangle * drift;
       }
-      this.drifty += this.sangle;
+      this.drifty += this.sangle * drift;
       if (this.drifty > highY) {
         this.sangle = -Math.abs(this.sangle);
-        this.drifty += this.sangle;
+        this.drifty += this.sangle * drift;
       }
       if (this.drifty < lowY) {
         this.sangle = Math.abs(this.sangle);
-        this.drifty += this.sangle;
+        this.drifty += this.sangle * drift;
       }
     }
     this.driftx = Math.min(highX, Math.max(lowX, this.driftx));
@@ -682,6 +712,7 @@ export class TmeRuntime {
 
   // Applies the screen-wide mirror chosen for this run of the pattern.
   adjustme() {
+    this.mirrored = true;
     switch (this.adjunct) {
       case 2:
         if (this.square) this.HorizontalMirror(true);
@@ -755,10 +786,40 @@ export class TmeRuntime {
     this.pattern = pattern;
     this.randomize();
     pattern.setup?.(this);
+    this.rolledVelo = this.velo;
+    this.holdChoices();
+  }
+
+  // The shared settings (settings.js), as values from the pattern's
+  // controls; they last until changed, through every re-roll.
+  applySettings(values) {
+    this.settings = resolveTmeSettings(values);
+    this.holdChoices();
+  }
+
+  // Puts back any choice that is not Random, which the pattern's own code
+  // may have changed since (twister() changes the wind, pattern 147 the
+  // mirror).
+  holdChoices() {
+    const { adjunct, wind, fancy, paleness } = this.settings;
+    if (adjunct !== null) this.adjunct = this.square || !SQUARE_ONLY_MIRRORS.has(adjunct) ? adjunct : 0;
+    if (wind !== null) this.wind = wind;
+    if (fancy !== null) this.fancy = fancy;
+    this.velo = paleness ? Math.min(255, Math.max(0, this.rolledVelo + paleness)) : this.rolledVelo;
   }
 
   // One pass of the sketch's loop().
   step() {
+    hueShift = this.settings.hueShift;
+    try {
+      this.drawStep();
+    } finally {
+      hueShift = 0;
+    }
+  }
+
+  drawStep() {
+    this.holdChoices();
     this.hue = this.wrap16(this.hue + 1);
     this.h = this.hue;
     this.checkshifty();
@@ -774,12 +835,26 @@ export class TmeRuntime {
       this.blender += this.random(4, 12);
       this.xblender -= this.random(4, 12);
     }
+    this.mirrored = false;
     this.pattern.run(this);
+    // A fixed mirror applies even where the pattern does not mirror.
+    if (this.settings.adjunct !== null && !this.mirrored) this.adjustme();
     this.counter++;
     this.ms += 1000 / this.targetfps;
-    // When its time is up the sketch re-rolls the pattern's parameters.
-    if (this.ms > this.patternStart + this.dwell)
-      this.start(this.pattern);
+    // When its time is up the sketch re-rolls the pattern's parameters, unless
+    // its variation is kept (T72). A seeded run re-rolls from a new seed it
+    // draws, so its seed always names the roll on screen.
+    if (this.ms > this.patternStart + this.dwell) {
+      if (this.hold) {
+        this.patternStart = this.ms;
+      } else {
+        if (this.rng.seed !== undefined) {
+          this.rng = seededRandom(newSeed(this.rng));
+          for (let i = 0; i < CONSTRUCTOR_DRAWS; ++i) this.rng();
+        }
+        this.start(this.pattern);
+      }
+    }
   }
 }
 
@@ -794,7 +869,19 @@ export class TmeAnimation {
     this.frames = 0;
   }
 
-  renderFrame(state) {
+  // The shared settings, and whether the variation is kept (T72).
+  applySettings(values) {
+    this.runtime.applySettings(values);
+    this.runtime.hold = values?.variation > 0;
+  }
+
+  // The seed of the roll on screen, when the run was seeded (seed.js).
+  get seed() {
+    return this.runtime.rng.seed;
+  }
+
+  renderFrame(state, params) {
+    if (params) this.applySettings(params);
     this.runtime.silence = state.silenceMode === 'quiet' ? 'quiet' : 'standin';
     this.runtime.setAudio(state.spectrumLeft ?? state.spectrum, state.audio,
       state.spectrumRight ?? state.spectrum);
@@ -811,8 +898,9 @@ export class TmeAnimation {
     } else {
       this.owed += Math.min(1, Math.max(0, seconds - this.lastTime));
       const started = performance.now();
-      while (this.owed >= 1 / t.targetfps) {
-        this.owed -= 1 / t.targetfps;
+      const interval = 1 / (t.targetfps * t.settings.speed);
+      while (this.owed >= interval) {
+        this.owed -= interval;
         t.step();
         this.frames++;
         if (performance.now() - started > CATCH_UP_BUDGET_MS) {

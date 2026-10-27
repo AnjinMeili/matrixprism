@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   HOTSAVE_DEFAULTS, LOOK_KEYS, entryParams, hotsaveName, hotsaveSettings, lookOf, lookSettings,
 } from '../public/look.js';
-import { playlistEntry, playlistSettings, unusedPlaylistId } from '../public/playlist.js';
+import { entryLook, playlistEntry, playlistSettings, unusedPlaylistId } from '../public/playlist.js';
 import { SPARKLE_DEFAULTS } from '../public/sparkle.js';
 import { SPECTRUM_DEFAULTS } from '../public/spectrum-plot.js';
 
@@ -38,11 +38,11 @@ test('pattern parameters in an entry keep the patterns that exist and the plain 
 
 test('entries keep a look and parameters when they have them, and old entries stay as they were', () => {
   const full = playlistEntry(entry({ look, params: { plasma: { scale: 4 } } }), ids);
-  assert.deepEqual(full.look, lookSettings(look));
-  assert.deepEqual(full.params, { plasma: { scale: 4 } });
+  assert.deepEqual(entryLook(full).shared, lookSettings(look));
+  assert.deepEqual(entryLook(full).inputs[0].params, { scale: 4 });
   const old = playlistEntry(entry(), ids);
-  assert.equal('look' in old, false);
-  assert.equal('params' in old, false);
+  assert.equal('shared' in entryLook(old), false);
+  assert.equal('params' in entryLook(old).inputs[0], false);
   // Through the playlist settings and back, as when saved and loaded.
   const saved = JSON.parse(JSON.stringify(playlistSettings({ lists: [{ id: 'p', name: 'P', entries: [full, old] }] }, ids)));
   assert.deepEqual(playlistSettings(saved, ids).lists[0].entries, [full, old]);
@@ -50,8 +50,10 @@ test('entries keep a look and parameters when they have them, and old entries st
 
 test('Hotsave takes one letter or digit, not the tap tempo key, and a playlist id or none', () => {
   assert.deepEqual(hotsaveSettings(), HOTSAVE_DEFAULTS);
-  assert.deepEqual(hotsaveSettings({ key: 'H' }), { key: 'h', playlistId: null });
-  assert.deepEqual(hotsaveSettings({ key: '7', playlistId: 'playlist-2' }), { key: '7', playlistId: 'playlist-2' });
+  assert.deepEqual(hotsaveSettings({ key: 'H' }), { key: 'h', playlistId: null, scope: 'onAir' });
+  assert.deepEqual(hotsaveSettings({ key: '7', playlistId: 'playlist-2', scope: 'quad' }),
+    { key: '7', playlistId: 'playlist-2', scope: 'quad' });
+  assert.throws(() => hotsaveSettings({ scope: 'both' }), /saves one of/);
   for (const key of ['t', 'T', 'd', 'D', 'ab', '', ' ', '/', 'ArrowLeft'])
     assert.throws(() => hotsaveSettings({ key }), undefined, `key ${JSON.stringify(key)}`);
   assert.throws(() => hotsaveSettings({ key: 'd' }), /marks the downbeat/);

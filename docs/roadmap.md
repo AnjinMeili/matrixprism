@@ -17,9 +17,11 @@ the measurements behind it are in [findings.md](findings.md).
 
 **Composer** (`composer/`, a browser page and a Node server):
 
-- 142 patterns: audio-reactive shaders, Spectrum Lab, the Beat Graph, Fire,
+- 148 patterns: audio-reactive shaders, Spectrum Lab, the Beat Graph, Fire,
   the Panel Range test card, a Media Player for images, GIFs and video, and
-  ports of the Aurora, Fibonacci128, AuroraDrop and Table Mark Estes sets.
+  ports of the Aurora, Fibonacci128, AuroraDrop and Table Mark Estes sets
+  and two from Spotify's 2013 visualizer demo (BSD 3-Clause), with Julia Flow,
+  a fractal of our own, beside them.
 - A quad mixer: inputs A and B mix to Left, C and D to Right, and the main
   mixes Left and Right, with crossfades and blends, per-input shapes,
   regions with hard or soft borders, hue, brightness and gamma trims, Swap,
@@ -32,8 +34,18 @@ the measurements behind it are in [findings.md](findings.md).
   phrase or a change in the music.
 - Sparkles over the final picture on the high-band hits.
 - A Monitor view with the beat graph and a live Camelot key wheel.
-- Playlists of saved looks, Hotsave, a randomizer with its own timers for
-  each input, clock, date and text overlays.
+- Pattern settings, and Follows: a number setting can follow the music
+  (lows, mids, highs, level, beat, high hits, key, bar). All 94 Table Mark
+  Estes patterns share nine settings built on what each run rolls.
+- Variations: a pattern that rolls dice shows the number of its roll, which
+  can be kept, rolled again, stepped back and returned to.
+- Playlists of saved looks: a look is one pair or the whole quad, and loads
+  into either pair without moving the main. Hotsave saves the pair on air,
+  either pair or the whole quad, with each input's variation.
+- Cue lists named by track: cues placed by bar from Go on the track's first
+  downbeat, with Next, Back and Hold on the bar line, also on MIDI pads.
+- A randomizer with its own timers for each input; clock, date and text
+  overlays.
 - Streaming DDP to WLED, to `matrix-dmx` or to any other DDP receiver;
   settings kept for each receiver, and a list of receivers found by mDNS.
 - Recording the final preview with the live audio to an MP4 (Chrome and
@@ -48,10 +60,11 @@ the measurements behind it are in [findings.md](findings.md).
 
 ## How it is checked
 
-- `npm test` in `composer/` (350 tests) and `make -C receiver test`.
+- `npm test` in `composer/` (465 tests) and `make -C receiver test`.
 - Checks in headless Chrome for the shaders, the test card, sparkles, the
-  quad mixer's rendering, layout and view, the Monitor, Hotsave, receivers,
-  the Essentia beat source and recording (see [AGENTS.md](../AGENTS.md),
+  quad mixer's rendering, layout and view, the Monitor, Hotsave, pattern
+  settings, variations, cue lists, MIDI, saved settings, receivers, the
+  Essentia beat source and recording (see [AGENTS.md](../AGENTS.md),
   "Verifying").
 - Measurements that are run again after a change and compared (see
   [findings.md](findings.md)).
@@ -75,37 +88,48 @@ the measurements behind it are in [findings.md](findings.md).
 ## Next
 
 1. **The quad mixer, steps 6 to 8**: the main's fade to the pair off air,
-   playlists and Hotsave on four inputs, the Media Player's start position,
-   and documentation.
-2. **Mids and vocals** for the audio layers: texture from the mids, then
+   the Media Player's start position, and documentation.
+2. **Cue lists, the next stages** (T76, [cue-lists-plan.md](cue-lists-plan.md)):
+   following the DJ software (Serato, djay Pro, Ableton Link), two decks on
+   the quad's two pairs, and later the cue strips, lasers and DMX.
+3. **The randomizer rolling variations and settings** (T72 part 2): settings
+   drift by a strength and jump on a break or every 8 or 16 bars, as the
+   fallback for tracks with no cue list. Then loading one entry into a pair
+   or an input, and exporting and importing playlists.
+4. **Follows for every pattern** (T71,
+   [follows-everywhere-plan.md](follows-everywhere-plan.md)): the Mark
+   Estes families, one configurable pattern per family that regenerates
+   each original, then AuroraDrop and the remaining patterns without
+   settings.
+5. **Mids and vocals** for the audio layers: texture from the mids, then
    vocals once there is a labelled set to measure against
    ([audio-layers-plan.md](audio-layers-plan.md)).
-3. **Choosing the default beat source**: Essentia with the hold and veto
+6. **Choosing the default beat source**: Essentia with the hold and veto
    measured best on dance music and a live mix; bass jumps is still the
    default.
-4. **More AuroraDrop**: 15 audio patterns with an MIT notice remain, most
+7. **More AuroraDrop**: 15 audio patterns with an MIT notice remain, most
    needing AuroraDrop's half and quarter-size canvases, then its Plasma,
    Simplex Noise, Electric Mandala and Life effects.
-5. **The rest of Table Mark Estes**: 105 pattern numbers.
-6. **Tempo into the ported patterns**: AuroraDrop's beat oscillators and the
+8. **The rest of Table Mark Estes**: 105 pattern numbers.
+9. **Tempo into the ported patterns**: AuroraDrop's beat oscillators and the
    Aurora ports could run off the detected tempo.
-7. **Open review items**: a saved value that can stop the page loading with
+10. **Open review items**: a saved value that can stop the page loading with
    no message; three documentation corrections; the recording format's
    per-frame timestamp scan (needs a timestamp index); tests for the WebGL
    renderer and `app.js`.
 
-8. **Patterns that use the spectral features and loudness**: `u_centroid`,
+11. **Patterns that use the spectral features and loudness**: `u_centroid`,
    `u_flatness`, `u_rolloff`, `u_zcr` and `u_loudness` reach every shader
    pattern (scales set from 120 dance tracks, see "Audio features" in the
    [findings](findings.md)) but no pattern reads them yet. Brightness from
    loudness or centroid and texture from flatness are the usual mappings.
-9. **Spectrum by frequency**: every pattern can read the spectrum by
+12. **Spectrum by frequency**: every pattern can read the spectrum by
    frequency (`rawSpec` in shaders, `state.spectrumInput` in JavaScript), and
    Spectrum Flock shows it in four modes (flock, springs, gather, cymatics);
    sparkles can land across the panel by pitch, though the detector finds
    hits in the high band only. More patterns that give frequencies to their
    parts are open.
-10. **Downbeats**: bars are counted from where the tracker started, not from
+13. **Downbeats**: bars are counted from where the tracker started, not from
    the music, so a change that waits for a bar waits for the composer's bar.
    No beat source here finds the downbeat. A pad on a MIDI device can now mark
    it (Monitor view, Chrome and Edge only; the D key and button did already).
@@ -113,7 +137,7 @@ the measurements behind it are in [findings.md](findings.md).
    (some, such as djay Pro by forum reports, sync by Ableton Link only, which
    needs a native helper); the
    research route is a measured trial of the small Beat This! ONNX model.
-11. **Packaging**: a download-and-double-click executable per platform, a
+14. **Packaging**: a download-and-double-click executable per platform, a
     container for always-on Linux hosts, and a release-only GitHub Actions
     workflow with signing and attestations: [packaging-plan.md](packaging-plan.md).
     Nothing is built; several decisions are open. Recording and live
