@@ -51,6 +51,11 @@ header button { margin-top: 0; }
 #live-status { flex: 1; min-width: 160px; overflow-wrap: anywhere; color: var(--muted); }
 .live-group[data-state="recording"] #go-live { color: var(--danger); border-color: var(--danger); }
 .live-group[data-state="error"] #live-status { color: var(--danger); }
+.ndi-group:not([hidden]) { display: contents; }
+#ndi-status { flex: 1; min-width: 160px; overflow-wrap: anywhere; color: var(--muted); }
+#ndi-link, #ndi-runtime-link { color: var(--accent); }
+.ndi-group[data-state="on"] #ndi { color: var(--danger); border-color: var(--danger); }
+.ndi-group[data-state="error"] #ndi-status { color: var(--danger); }
 .recording-bar[data-state="error"] #recording-status { color: var(--danger); }
 
 .views { display: flex; gap: 4px; margin: 0 auto 0 8px; }

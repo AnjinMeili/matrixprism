@@ -54,17 +54,22 @@ export function defaultBitrate(width, height) {
 // CBR, as YouTube asks: without a floor (-minrate, HRD signalled, filler) x264
 // sent a fifth to a tenth of the rate on a sparse picture (#1). Pixels are square
 // (setsar=1): scaling the panel's 4:3 picture to another size otherwise keeps 4:3
-// on screen by marking the pixels non-square (#6).
+// on screen by marking the pixels non-square (#6). A live stream is read at
+// real time (-re): the page uploads a second at a time, which unpaced went to
+// YouTube in one burst of a few milliseconds a second. The sound is timed by its
+// samples (aresample=async=1): the browser's Opus packets arrive 2 ms early or
+// late, which FFmpeg carried into the AAC timestamps (steps of 21 to 26 ms, not
+// 23 or 24), and YouTube's copies clicked every few AAC frames (#64).
 export function ffmpegArgs({ width, height, fps = 30, kbps, smooth = false, target }) {
   const live = target.kind === 'rtmp';
   const rate = kbps ?? (live ? defaultBitrate(width, height) : null);
-  return ['-hide_banner', '-f', 'matroska', '-i', 'pipe:0', '-map', '0:v:0', '-map', '0:a:0',
+  return ['-hide_banner', ...(live ? ['-re'] : []), '-f', 'matroska', '-i', 'pipe:0', '-map', '0:v:0', '-map', '0:a:0',
     '-vf', `fps=${fps},scale=${width}:${height}:flags=${smooth ? 'bicubic' : 'neighbor'},setsar=1,format=yuv420p`,
     '-c:v', 'libx264', '-preset', 'veryfast', ...(live ? ['-tune', 'zerolatency'] : []),
     ...(rate ? ['-b:v', `${rate}k`, '-maxrate', `${rate}k`, '-bufsize', `${rate * 2}k`] : ['-crf', '18']),
     ...(live ? ['-minrate', `${rate}k`, '-nal-hrd', 'cbr'] : []),
     '-g', String(fps * 2), '-sc_threshold', '0',
-    '-c:a', 'aac', '-b:a', '128k', '-ar', '44100',
+    '-af', 'aresample=async=1', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100',
     ...(live ? ['-f', 'flv', target.url] : ['-n', '-movflags', '+faststart', target.path])];
 }
 

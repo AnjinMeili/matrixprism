@@ -67,6 +67,38 @@ Record bar (1 to 3), is saved as `settings.videoGamma` and may be moved while
 recording or live. The panel and the preview are unchanged. See "The panel
 against the preview" in [findings.md](findings.md).
 
+### NDI output (#62, an NDI build only)
+
+In an NDI build of the desktop app, the composed picture can go out as an
+NDI® source called MatrixPrism, for OBS, Resolume, vMix or NDI Tools. The
+release never has it: the code is in `main`, but only an NDI build installs
+koffi (an FFI module, `app/ndi/`), and without koffi the controls are not
+shown and `/api/ndi` answers `{ built: false }`. Nothing of NDI ships with
+MatrixPrism; the app loads the runtime installed from ndi.video
+(`libndi.dylib` in `/usr/local/lib`, or the folder `NDI_RUNTIME_DIR_V6`
+names). Without it the NDI controls say so, with NDI's download link.
+
+Each frame while NDI is on, the page lifts the frame sent to the panel by
+Video gamma into RGBA (`liftFrame`, as Record and Go live do) and sends it
+down the frame channel beside the DDP frame; the relay tells the two apart by
+size (`w×h×4` against `w×h×3`). `lib/ndi.js` enlarges it by the whole multiple
+chosen (no smoothing; under a millisecond at 4K on an M5 Max) and hands it to
+NDI's synchronous send on a koffi worker thread, so NDI's encoding never runs
+on the main process. One frame is in flight at a time; a frame that arrives
+while NDI is still busy is skipped. The sizes are the panel's own and whole
+multiples of it up to 3840×2160 (`ndiSizes()` in `live-sizes.js`), nearest
+720 high by default; the NDI frame rate given is the composer's `fps`. NDI
+and the panel's stream run and stop independently. The status shows the
+source's size, its address and the receivers connected, from the relay's
+statistics each second.
+
+Unlike DDP, an NDI source listens: it advertises itself by mDNS (UDP 5353)
+and receivers connect over TCP or reliable UDP from port 5960. The NDI
+build's `Info.plist` declares `_ndi._tcp` for macOS's Local Network
+permission. NDI's terms ask for a link to ndi.video beside the control; it
+opens in the browser, as the runtime's download does (the only links the
+window lets out).
+
 ### Experimental recording (T47, preview-recording branch)
 
 `public/recording.js` captures the final preview immediately after rendering,
@@ -299,6 +331,7 @@ In `composer/public/` unless noted.
 | `frame-clock.js` | Worker timer |
 | `server.js`, `lib/ddp.js` (in `composer/`) | HTTP, WebSocket and DDP |
 | `lib/mdns.js` (in `composer/`) | Finding receivers on the network by mDNS |
+| `lib/ndi.js` (in `composer/`) | The NDI output (#62), in an NDI build: finding the runtime, the calls through koffi, enlarging, and one source per page |
 | `lib/vendor/ws/` (in `composer/`) | The server's WebSocket library, [ws](https://github.com/websockets/ws) 8.22.0, kept unchanged so the composer has no npm dependencies (see its `NOTICE.md`) |
 | `receivers.js` | Settings kept for each receiver, and the limit on frames sent |
 | `lib/version.js` (in `composer/`), `version.js` | Which copy is running: package version, git branch, commit and folder, served at `/api/version` and shown in the Version frame |
@@ -342,6 +375,7 @@ group is replaced by defaults with a message, without discarding the rest.
 | `playlists` | `lists` of entries, `activeId`, `loop`, `shuffle`, and `pair` (`left` or `right`: where entries show and play, T73). A list with a `track` (`artist`, `title`, and where known `isrc` and `bpm`) is a cue list, named by the track (T76) | `playlistSettings()` |
 | `patternParams` | Each pattern's own parameters that differ from the defaults, by pattern id | `changedParams()` on load (`app.js`) |
 | `receivers` | Each receiver's `brightness`, `gamma` and `maxFps`, by host in lower case; `brightness`, `gamma` and `maxFps` hold the values in use | `receiverSettings()`, `receiverProfile()` |
+| `ndiSize` | The NDI output's size, as the whole multiple of the panel (#62) | `fillNdiSizes()` (`app.js`) |
 | `quad`, `quadLayout`, `defaultLook` | The quad mixer: C, D, Right, the master (shown as the main) and each input's trim and hue (`hue`: null to follow the main's, or 0 to 1) (A, B and Left copied from the one-pair settings before each save); its layout; the look Reset main brings back, or null | `quadFromSettings()`, `layoutSettings()`, `wholeLook()` |
 | `hotsave` | `key` (one letter or digit, not T), `playlistId` (null: a playlist called Hotsave, made on first use), and `scope` (`onAir`, `left`, `right` or `quad`: what Hotsave, Add current look and Replace save, T73) | `hotsaveSettings()` |
 | `randomizer` | `enabled`, `unit` (`seconds`, `beats` or `bars`), `minWait`, `maxWait`, `tracks`; `minSeconds` and `maxSeconds` saved before 2026-10-20 are read as the waits in seconds | `randomizerSettings()` |

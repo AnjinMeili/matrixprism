@@ -14,7 +14,9 @@
     "start": "electron .",
     "stage": "node tools/stage.mjs",
     "dist:mac": "node tools/stage.mjs && electron-builder --config electron-builder.yml --mac dmg --arm64 --publish never",
+    "dist:mac:ndi": "node tools/stage.mjs --ndi && electron-builder --config electron-builder-ndi.yml --mac dmg --arm64 --publish never",
     "dist:win": "node tools/stage.mjs && electron-builder --config electron-builder.yml --win nsis --x64 --publish never",
+    "dist:win:ndi": "node tools/stage.mjs --ndi && electron-builder --config electron-builder-ndi.yml --win nsis --x64 --publish never",
     "dist:linux": "node tools/stage.mjs && electron-builder --config electron-builder.yml --linux deb AppImage --publish never"
   },
   "devDependencies": {

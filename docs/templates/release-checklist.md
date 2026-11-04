@@ -19,6 +19,8 @@ that tag: the same code, now the build that is kept.
 - [ ] `npm test`, every `check-*` and `make -C receiver test` pass on that
       checkout
 - [ ] The packaged app's checks pass (`check-app`, recording, discovery)
+- [ ] No NDI in the package (#62): `check-app-ndi.mjs --expect none` passes
+      on it, and its `Contents/Resources/app` holds no `node_modules`
 - [ ] Installed on a Mac that did not build it; opens, finds the receivers
 - [ ] The Panel Range card read on the panel
 - [ ] The page in Safari

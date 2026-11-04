@@ -23,6 +23,7 @@ pattern that draws at random says little.
 - [Sparkles in the stream](#sparkles-in-the-stream)
 - [Recording the preview](#recording-the-preview)
 - [The panel against the preview](#the-panel-against-the-preview)
+- [Tempo by folding](#tempo-by-folding)
 - [Beat-tracking methods surveyed](#beat-tracking-methods-surveyed)
 - [Aurora Bounce runs down](#aurora-bounce-runs-down)
 
@@ -223,6 +224,52 @@ are drawn once, over the final picture after the main.
 - Some boards' Wi-Fi suffers from their own display refresh; the composer
   can send them fewer frames a second.
 
+## Tempo by folding
+
+An offline study, 2026-11-02 to 11-03. The tempo of whole previews and loops
+was found by folding a novelty feature over beats and bars, and compared with
+the composer's onset intervals, Troy's tracker (a faithful port), and four
+canned methods. Every function was reviewed before the full runs. The sets
+were 774 Beatport EDM Key Dataset previews with a BPM (251 house) and 296
+Freesound Loop Dataset loops (37 a genre, tiled to 60 s). A tempo counted
+as right within 2% of the label.
+
+| Method | Beatport, all | Beatport, house | FSLD |
+| --- | ---: | ---: | ---: |
+| The composer's flux, onset intervals | 38% | — | — |
+| The same flux, the fair fold | 88.4% | — | 75.3% |
+| The fold on frequency flux | 90.6% | 98.8% | 75.3% |
+| QM beat tracker (Davies and Plumbley) | 95.9% | 100% | 63.2% |
+| BpmDj (newer build) | 89.8% | 99.2% | 65.5% |
+| Beat This! | 87.6% | 99.2% | 58.4% |
+| madmom comb TempoDetector | 73.0% | 84.5% | 61.5% |
+| Troy's tracker | 69.5% | 97.2% | 47.0% |
+
+- **The fold.** Each candidate tempo is scored by how alike its cycles are,
+  each against the mean of the others, less an allowance for chance, for
+  the beat and the best of 1, 2 and 4 bars, over 90–175 BPM. The window is
+  an octave prior. On noise it scores below zero at every tempo.
+- **Exactness, not the feature, was the gap.** The composer's own flux,
+  folded, comes within 2 points of the best feature. Frequency flux grew
+  from a suggestion by Werner Van Belle: band 0's frequency jitter, whose
+  level is locked to the beat. His 2D fold of amplitude and frequency did
+  not do better.
+- **No method wins everywhere.** QM leads on full tracks; the fold leads on
+  loops. The fold was designed on the Beatport set, so its figures there
+  are in-sample.
+- **Troy's tracker is level with the fold on house** (p = 0.29). Away from
+  house its prior holds it near 125 BPM. Its comb score rises with tempo
+  even on noise, and noise can lock it.
+- **Combining has not gained.** Adding the comb's evidence to the fold
+  lowered accuracy, and the best possible choice between their outputs adds
+  under a point on house. Three methods voting add little accuracy, but
+  their **agreement is a reliable confidence**: when the fold, QM and Troy
+  all agree, the tempo was right on every Beatport track.
+
+What followed: [tempo-plan.md](tempo-plan.md), a testing protocol for
+evolving Troy's tracker one measured change at a time, for the composer,
+ESP32 and Teensy, with the fold and QM as references.
+
 ## Beat-tracking methods surveyed
 
 A survey of the literature, not a measurement. Neural methods have led tempo,
@@ -306,6 +353,22 @@ as YouTube's stream manager asked).
 
 Not covered: what YouTube's stream manager says of each size and rate, and
 how its player frames a 4:3 stream; those need a test stream.
+
+### Torn audio on YouTube
+
+Asked: why YouTube's copy of a live stream clicked and dropped out when the
+music was clean at the source. Measured by keeping a copy of exactly what the
+live encoder sent (FFmpeg's tee muxer), fetching YouTube's copy of each test
+stream, and counting clicks and short dropouts in both. What was sent was
+clean. The browser's Opus packets arrive up to 2 ms early or late, and FFmpeg
+carried that into the AAC timestamps: steps of 21 to 26 ms where FLV's
+whole-millisecond rounding allows only 23 or 24. Done: the sound is timed by
+its sample count (`aresample=async=1`), and YouTube's copy went from 224
+clicks and 90 dropouts a minute to 9 clicks and none, level with what was
+sent and below clean music's background. The encoder also sent each second
+of the page's uploads in one burst; it now reads at real time (`-re`), which
+on its own did not stop the clicks. Not covered: streams longer than two
+minutes.
 
 ## DJs and VJs
 

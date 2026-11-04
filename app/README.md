@@ -73,3 +73,48 @@ To check the packaged app instead of the development copy:
 MATRIXPRISM_ELECTRON=$PWD/dist/mac-arm64/MatrixPrism.app/Contents/MacOS/MatrixPrism \
 MATRIXPRISM_PACKAGED=1 node check-app.mjs      # also check-app-recording.mjs, check-app-discovery.mjs
 ```
+
+## The NDI build (#62), never released
+
+An NDI build can send the composed picture as an NDI® source (see "NDI
+output" in `docs/composer-spec.md`). The code is in every build; what turns
+it on is koffi, an FFI module (MIT) pinned in `ndi/` with its own lockfile,
+which only an NDI build installs. The release workflow never does, and
+`tools/stage.mjs` refuses to stage a plain build that holds koffi or any
+`node_modules`.
+
+```sh
+npm --prefix ndi ci                     # once: koffi and its prebuilt binary, no compiler
+env -u ELECTRON_RUN_AS_NODE npm start   # the development copy now has NDI
+npm run dist:mac:ndi                    # dist-ndi/MatrixPrism-<version>-ndi-arm64.dmg
+npm run dist:win:ndi                    # on Windows: dist-ndi/MatrixPrism-<version>-ndi-setup-x64.exe
+```
+
+The Windows package for testing is built on GitHub by
+`.github/workflows/ndi-build.yml`, in the development repository only: on a
+push to the `ndi-output` branch, or by hand once it is on `main`. It checks
+the packaged app on the runner (with the stand-in runtime and with none) and
+keeps the installer as the run's artifact for seven days. It installs over a
+MatrixPrism already there, as the same app.
+
+`electron-builder-ndi.yml` is the plain configuration plus `_ndi._tcp` in
+`NSBonjourServices` and its own output folder and file names. NDI itself is
+not in the package: install NDI Tools or the NDI runtime from
+[ndi.video](https://ndi.video/) on the computer that runs it. Without the
+runtime the NDI controls say so and link to its download.
+
+Checks, without the NDI runtime: a stand-in libndi compiled from NDI's own
+headers (MIT; in the NDI SDK's `include` folder, or DistroAV's `lib/ndi/`),
+which logs what it is sent (`ndi-stub.mjs`):
+
+```sh
+node check-ndi-binding.mjs --headers <folder>   # every struct field and call, under Node
+ELECTRON_RUN_AS_NODE=1 node_modules/.bin/electron check-ndi-binding.mjs --headers <folder>
+node check-app-ndi.mjs --expect stub --headers <folder>   # the app end to end, hidden; UDP 4048 free
+node check-app-ndi.mjs --expect missing                   # no runtime: the controls say how to get it
+MATRIXPRISM_PACKAGED=1 MATRIXPRISM_ELECTRON=$PWD/dist/mac-arm64/MatrixPrism.app/Contents/MacOS/MatrixPrism \
+  node check-app-ndi.mjs --expect none                    # a plain package: no NDI at all
+```
+
+They do not show a real NDI receiver taking the picture; that needs the
+runtime and NDI Tools.

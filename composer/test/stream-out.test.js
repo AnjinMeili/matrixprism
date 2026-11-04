@@ -35,10 +35,14 @@ test('FFmpeg is told to enlarge with square pixels, keep two-second keyframes an
   assert.equal(live[live.indexOf('-nal-hrd') + 1], 'cbr');
   assert.equal(live.at(-1), 'rtmp://h/a/k');
   assert.ok(live.includes('zerolatency'));
+  // A live stream's input is read at real time, so it is not sent in bursts.
+  assert.ok(live.indexOf('-re') >= 0 && live.indexOf('-re') < live.indexOf('-i'));
+  // The sound is timed by its samples, not the browser's packet times (#64).
+  assert.equal(live[live.indexOf('-af') + 1], 'aresample=async=1');
   const smooth = ffmpegArgs({ width: 640, height: 480, smooth: true, target: { kind: 'file', path: 'o.mp4' } });
   assert.ok(smooth.some((a) => a.includes('flags=bicubic')));
   assert.equal(smooth.at(-1), 'o.mp4');
-  assert.ok(!smooth.includes('zerolatency'));
+  assert.ok(!smooth.includes('zerolatency') && !smooth.includes('-re'));
   assert.ok(smooth.includes('-crf') && !smooth.includes('-b:v'));
   const fixed = ffmpegArgs({ width: 640, height: 480, kbps: 2000, target: { kind: 'file', path: 'o.mp4' } });
   assert.equal(fixed[fixed.indexOf('-b:v') + 1], '2000k');

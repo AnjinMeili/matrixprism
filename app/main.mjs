@@ -7,13 +7,17 @@
 // answers, and, through an adapter, the recording and Go live handlers. The frame
 // socket (/stream) is an IPC channel; the preload script puts a WebSocket
 // stand-in in front of it, so the page's own code is not changed.
+import { shell } from 'electron/common';
 import { app, BrowserWindow, ipcMain, protocol, safeStorage, screen, session } from 'electron/main';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DDP_PORT } from '../composer/lib/ddp.js';
 import { answerWithNodeHandler } from '../composer/lib/fetch-adapter.js';
 import { pathWithFfmpegDirs } from '../composer/lib/ffmpeg-path.js';
 import { LiveService, liveRequest } from '../composer/lib/live.js';
+import { NDI_LINK, NDI_RUNTIME_LINKS, NdiOutput, loadNdi } from '../composer/lib/ndi.js';
 import { RecordingService, recordingRequest } from '../composer/lib/recording.js';
 import { RelayApi, StreamSession, fileAnswer } from '../composer/lib/relay-core.js';
 import { StreamKeyStore } from './stream-key.mjs';
@@ -46,8 +50,27 @@ protocol.registerSchemesAsPrivileged([{
   privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
 }]);
 
+// NDI, in an NDI build only (#62): koffi is in ndi/node_modules once
+// `npm --prefix app/ndi ci` has run, and in the package's own node_modules
+// in a package built by `npm run dist:mac:ndi`; a plain build has neither.
+// It is loaded from those and nowhere else.
+function ndiKoffi() {
+  const folder = [path.join(HERE, 'ndi', 'node_modules', 'koffi'), path.join(HERE, '..', 'node_modules', 'koffi')]
+    .find((candidate) => fs.existsSync(candidate));
+  if (!folder) return null;
+  try {
+    return createRequire(import.meta.url)(folder);
+  } catch (error) {
+    console.error(`NDI: koffi did not load: ${error.message}`);
+    return null;
+  }
+}
+const ndi = loadNdi(ndiKoffi());
+if (ndi.status.built) console.log(ndi.bindings ? `NDI runtime ${ndi.status.version}` : `NDI: ${ndi.problems.join('; ')}`);
+const NDI_LINKS = new Set([NDI_LINK, ...Object.values(NDI_RUNTIME_LINKS)]);
+
 const api = new RelayApi({
-  receiverHost: process.env.MATRIX_HOST ?? '', ddpPort: DDP_PORT, rootDir: COMPOSER_DIR,
+  receiverHost: process.env.MATRIX_HOST ?? '', ddpPort: DDP_PORT, rootDir: COMPOSER_DIR, ndi: ndi.status,
 });
 const recordings = new RecordingService({ directory: process.env.MATRIXPRISM_RECORD_DIR });
 const live = new LiveService({ hint: 'Enter the stream key beside Go live' });
@@ -72,13 +95,17 @@ async function answer(request) {
   return new Response(file.body, { status: file.status, headers: file.headers });
 }
 
-// The frame socket, one per window.
+// The frame socket, one per window. A reloaded page opens a new one: the old is
+// closed first, or its statistics would go on reaching the page beside the new
+// one's, and an NDI source it held would stay on the network.
 const streams = new Map();
 
 function openStream(webContents) {
   const send = (message) => { if (!webContents.isDestroyed()) webContents.send('stream:message', message); };
-  streams.set(webContents.id, new StreamSession({ send, defaultDdpPort: DDP_PORT }));
-  webContents.once('destroyed', () => closeStream(webContents.id));
+  if (streams.has(webContents.id)) closeStream(webContents.id);
+  else webContents.once('destroyed', () => closeStream(webContents.id));
+  streams.set(webContents.id, new StreamSession({ send, defaultDdpPort: DDP_PORT,
+    ndi: ndi.bindings ? new NdiOutput(ndi.bindings) : null }));
 }
 
 function closeStream(id) {
@@ -164,7 +191,12 @@ app.whenReady().then(async () => {
     });
     // Nothing but this app's own address may load in the window.
     window.webContents.on('will-navigate', (event, target) => { if (!ours(target)) event.preventDefault(); });
-    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    // Nor may it open another window; NDI's own links, which its terms ask to
+    // be shown beside the NDI control, open in the browser.
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      if (NDI_LINKS.has(url)) shell.openExternal(url);
+      return { action: 'deny' };
+    });
     if (saved?.maximized && !BACKGROUND) window.maximize();
     windowState.track(window);
     await window.loadURL(`${SCHEME}://app/index.html`);
@@ -184,13 +216,15 @@ app.whenReady().then(async () => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) open(); });
 });
 
-// A recording or a live stream still running is finished before the app goes.
+// A recording or a live stream still running is finished before the app goes,
+// and an NDI source taken off the network.
 let closing = false;
 app.on('before-quit', (event) => {
   if (closing) return;
   event.preventDefault();
   closing = true;
-  Promise.all([recordings.close(), live.close()]).finally(() => app.quit());
+  Promise.all([recordings.close(), live.close(), ...[...streams.values()].map((stream) => stream.ndi?.close())])
+    .finally(() => app.quit());
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

@@ -22,3 +22,20 @@ export function liveSizes(width, height) {
 export function defaultLiveSize(sizes) {
   return sizes.reduce((best, size) => (Math.abs(size.height - 720) < Math.abs(best.height - 720) ? size : best), sizes[0]);
 }
+
+// The sizes NDI offers (#62): the panel's own size and whole multiples of it
+// up to 4K UHD, in its shape. NDI has no evenness rule and no smallest size,
+// so the panel's size is always first; of the rest at most six are kept,
+// those nearest the usual heights. The default is the one nearest 720 high.
+const NDI_HEIGHTS = [360, 480, 720, 1080, 1440, 2160];
+
+export function ndiSizes(width, height) {
+  const sizes = [];
+  for (let scale = 1; height * scale <= 2160 && width * scale <= 3840; ++scale)
+    sizes.push({ width: width * scale, height: height * scale, scale });
+  const larger = sizes.slice(1);
+  if (larger.length <= MAX_SIZES) return sizes;
+  const kept = new Set(NDI_HEIGHTS.map((target) =>
+    larger.reduce((best, size) => (Math.abs(size.height - target) < Math.abs(best.height - target) ? size : best))));
+  return [sizes[0], ...larger.filter((size) => kept.has(size))];
+}

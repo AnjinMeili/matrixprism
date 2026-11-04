@@ -1,0 +1,9 @@
+{
+  "name": "matrixprism-app-ndi",
+  "private": true,
+  "description": "The NDI build's one dependency (#62): koffi, which calls the NDI runtime installed from ndi.video. Installed only for an NDI build (npm --prefix app/ndi ci); the release never installs it.",
+  "license": "GPL-3.0-only",
+  "dependencies": {
+    "koffi": "3.3.3"
+  }
+}

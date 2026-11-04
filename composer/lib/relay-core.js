@@ -1,7 +1,8 @@
 // The relay's work, apart from how a request reaches it (T65). The composer's
 // server (server.js) and the desktop app (app/main.mjs) both use this: the files
 // of the page, the small JSON answers about receivers and the version, and the
-// frame channel that turns the page's frames into DDP packets. Each brings its
+// frame channel that turns the page's frames into DDP packets and, in an NDI
+// build, an NDI source (ndi.js). Each brings its
 // own transport: HTTP and a WebSocket in the server; a secure scheme and IPC in
 // the app. Nothing here listens on a port.
 import { lookup } from 'node:dns/promises';
@@ -105,12 +106,13 @@ export async function fetchMatrixInfo(host, fetchImpl = fetch, lookupImpl = look
 }
 
 // The GET answers the page asks the relay for besides files: /api/config,
-// /api/version, /api/receivers and /api/info. `handle` gives { status, body }
+// /api/version, /api/receivers, /api/info and /api/ndi. `handle` gives { status, body }
 // for one of them, or null for any other path.
 export class RelayApi {
   constructor({ receiverHost = '', ddpPort = DDP_PORT, started = new Date().toISOString(), rootDir,
-    discover = discoverReceivers, fetchInfo = fetchMatrixInfo, version = versionInfo } = {}) {
-    Object.assign(this, { receiverHost, ddpPort, started, rootDir, discover, fetchInfo, version });
+    discover = discoverReceivers, fetchInfo = fetchMatrixInfo, version = versionInfo,
+    ndi = { built: false, available: false } } = {}) {
+    Object.assign(this, { receiverHost, ddpPort, started, rootDir, discover, fetchInfo, version, ndi });
     this.discovery = null;
   }
 
@@ -134,6 +136,9 @@ export class RelayApi {
         try { return { status: 200, body: { receivers: await this.findReceivers() } }; } catch (error) { return { status: 502, body: { error: error.message } }; }
       case '/api/info':
         try { return { status: 200, body: await this.fetchInfo(searchParams.get('host') || '') }; } catch (error) { return { status: 502, body: { error: error.message } }; }
+      case '/api/ndi':
+        // Whether this build has NDI and whether its runtime loaded (#62).
+        return { status: 200, body: this.ndi };
       default:
         return null;
     }
@@ -143,16 +148,24 @@ export class RelayApi {
 // One page's frame channel: the messages of /stream, whatever carries them.
 // `send(message)` takes an object for the page. Give it each message with
 // `message(data, isBinary)`; a text message is JSON, a binary one a frame.
+// A frame is told by its size: RGB at the panel's size goes to the receiver
+// by DDP, RGBA (lifted for video by the page) to the NDI source, `ndi`, in
+// an NDI build (#62).
 export class StreamSession {
-  constructor({ send, defaultDdpPort = DDP_PORT, sender = new DdpSender(), log = () => {}, statsMs = 1000 }) {
-    Object.assign(this, { send, defaultDdpPort, sender, log });
+  constructor({ send, defaultDdpPort = DDP_PORT, sender = new DdpSender(), ndi = null, log = () => {}, statsMs = 1000 }) {
+    Object.assign(this, { send, defaultDdpPort, sender, ndi, log });
     this.frameBytes = 0;
     this.targetLabel = '';
-    this.timer = setInterval(() => send({ type: 'stats', target: this.targetLabel, ...sender.takeStats() }), statsMs);
+    this.timer = setInterval(() => send({ type: 'stats', target: this.targetLabel, ...sender.takeStats(),
+      ...(ndi ? { ndi: ndi.takeStats() } : {}) }), statsMs);
   }
 
   async message(data, isBinary) {
     if (!isBinary) return this.control(data);
+    if (this.ndi?.on && data.length === this.ndi.frameBytes && data.length !== this.frameBytes) {
+      this.ndi.frame(data);
+      return;
+    }
     if (this.frameBytes === 0) return;
     if (data.length !== this.frameBytes) {
       this.send({ type: 'error', message: `frame is ${data.length} bytes, expected ${this.frameBytes}` });
@@ -169,6 +182,7 @@ export class StreamSession {
       this.send({ type: 'error', message: 'invalid JSON control message' });
       return;
     }
+    if (message.type === 'ndi') return this.ndiControl(message);
     if (message.type !== 'target') return;
     const width = Number(message.width);
     const height = Number(message.height);
@@ -192,8 +206,35 @@ export class StreamSession {
     }
   }
 
+  // { type: 'ndi', on, width, height, scale, fps }: the panel's size, the
+  // whole multiple the NDI picture is enlarged by, and the frame rate it
+  // gives receivers.
+  ndiControl(message) {
+    if (!this.ndi) {
+      this.send({ type: 'ndi', on: false, error: 'NDI is not available here' });
+      return;
+    }
+    if (!message.on) {
+      this.ndi.stop();
+      this.log('NDI source stopped');
+      this.send({ type: 'ndi', on: false });
+      return;
+    }
+    try {
+      const { width, height, address } = this.ndi.start({
+        width: Number(message.width), height: Number(message.height), scale: Number(message.scale), fps: Number(message.fps),
+      });
+      this.log(`NDI source ${this.ndi.name} at ${width}x${height}${address ? ` on ${address}` : ''}`);
+      this.send({ type: 'ndi', on: true, name: this.ndi.name, width, height, address });
+    } catch (error) {
+      this.send({ type: 'ndi', on: false, error: error.message });
+    }
+  }
+
+  // Resolves once an NDI source, if any, is gone from the network.
   close() {
     clearInterval(this.timer);
     this.sender.close();
+    return this.ndi?.close();
   }
 }

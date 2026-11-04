@@ -57,6 +57,11 @@ the measurements behind it are in [findings.md](findings.md).
   so that on a screen they look as the panel does (2.2 by default; 1 keeps the
   panel's levels). Checked through Record in headless Chrome; not yet seen on
   YouTube or in Safari.
+- NDI output, in an NDI build of the desktop app only (#62; never in a
+  release): the composed picture, lifted by Video gamma and enlarged by a
+  whole multiple, as an NDI source, using the NDI runtime installed from
+  ndi.video. Checked against a stand-in runtime built from NDI's headers;
+  not yet seen by a real NDI receiver.
 
 ## How it is checked
 
@@ -82,6 +87,8 @@ the measurements behind it are in [findings.md](findings.md).
 - Go live over a long run (delay, sync by ear, CPU); it has been tried once
   on a private YouTube stream and against a local receiver with a test signal.
   `stream-out` has only had the test signal.
+- NDI with the real runtime: a receiver taking the source, NDI's encoding
+  cost at 4K, and macOS's Local Network prompt for it.
 - The receiver's latest changes on the Pi: the recording writer thread,
   address refresh and `scene-tool recover`.
 
@@ -106,7 +113,10 @@ the measurements behind it are in [findings.md](findings.md).
    ([audio-layers-plan.md](audio-layers-plan.md)).
 6. **Choosing the default beat source**: Essentia with the hold and veto
    measured best on dance music and a live mix; bass jumps is still the
-   default.
+   default. Proposed next: evolving Troy's tracker one measured change at a
+   time, for the composer, ESP32 and Teensy, with agreement between sources
+   as a confidence ([tempo-plan.md](tempo-plan.md); the study behind it in
+   [findings](findings.md#tempo-by-folding)).
 7. **More AuroraDrop**: 15 audio patterns with an MIT notice remain, most
    needing AuroraDrop's half and quarter-size canvases, then its Plasma,
    Simplex Noise, Electric Mandala and Life effects.

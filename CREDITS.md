@@ -70,6 +70,7 @@ published description, and is credited in the source file's header.
 | The Camelot wheel notation for keys | Mixed In Key; "Camelot" is its trademark | The Camelot Wheel pattern, the Monitor's key wheel and key labels |
 | The renormalised iteration count, for smooth colouring of escape-time fractals | Linas Vepstas (1997) | Julia Flow, `composer/public/patterns/visualizer-app/julia.js` |
 | Spectral flux onsets | The onset-detection literature (e.g. Bello et al., 2005; Dixon, 2006) | `composer/public/band-flux.js`, `flux-worklet.js` |
+| HUB75 refresh arithmetic: shift and bit-plane timings | [SmartMatrix](https://github.com/pixelmatix/SmartMatrix)'s Teensy 4 driver at `af288cb` (Louis Beaudoin, Pixelmatix; MIT-style), and `rpi-rgb-led-matrix`'s LSB default; ColorLight's 5A-75B and 5A-75E specification sheets; the [chubby75](https://github.com/q3k/chubby75) notes (q3k and contributors) | `docs/hub75-refresh.md`, `docs/hub75-refresh-moonlight-style.md` (figures only, no code) |
 
 ## Protocols and interoperability
 
@@ -84,6 +85,19 @@ with them. No code from the projects named is included.
   receiver. The composer uses the same API and DDP to find and stream to
   WLED devices themselves. WLED is a trademark of its project; MatrixPrism is not affiliated
   with it.
+- **NDI®**, by Vizrt NDI AB, in an NDI build of the desktop app only (#62),
+  never in a release. `composer/lib/ndi.js` declares the NDI functions and
+  structs it calls as written in the NDI SDK 6 headers (`Processing.NDI.Lib.h`,
+  `Processing.NDI.Send.h`, `Processing.NDI.structs.h`), which Vizrt NDI AB
+  publishes under the MIT licence; the stand-in runtime for the checks
+  (`app/ndi-stub.mjs`) is compiled against those headers, which are not
+  included. The NDI runtime is not included either: it is the one installed
+  from [ndi.video](https://ndi.video/), loaded when the app starts, as NDI's
+  documentation prefers. NDI is a registered trademark of Vizrt NDI AB;
+  MatrixPrism is not affiliated with it.
+- **koffi** ([koffi.dev](https://koffi.dev/), Niels Martignène, MIT), the FFI
+  module the NDI build calls the runtime through. It is not in this
+  repository: an NDI build installs it from npm, pinned in `app/ndi/`.
 
 ## Data used for measurement, not included
 

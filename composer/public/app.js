@@ -48,8 +48,8 @@ import { buildQuadView } from './quad-view.js';
 import { helpPopover } from './help.js';
 import { buildParamControls } from './param-controls.js';
 import { PreviewRecorder } from './recording.js';
-import { defaultLiveSize, liveSizes } from './live-sizes.js';
-import { VIDEO_GAMMA_DEFAULT, VideoCanvas, videoGamma } from './video-gamma.js';
+import { defaultLiveSize, liveSizes, ndiSizes } from './live-sizes.js';
+import { VIDEO_GAMMA_DEFAULT, VideoCanvas, liftFrame, videoGamma, videoGammaTable } from './video-gamma.js';
 
 const STORAGE_KEY = 'matrix-companion-settings';
 const READOUT_INTERVAL_MS = 250;
@@ -105,6 +105,7 @@ const DEFAULTS = {
   recordingEncoder: 'software',
   liveSize: null,
   liveCustom: { width: 1280, height: 720 },
+  ndiSize: null,
   monitorRecord: false,
 };
 
@@ -241,6 +242,14 @@ const link = {
   socket: null, open: false, streaming: false, pendingStart: false, resume: false, reconnecting: false,
   // Why the display's size could not be read before this stream, if it could not.
   sizeWarning: '',
+};
+
+// The NDI source (#62), in an NDI build of the desktop app: what the relay
+// says of it, whether it is on, and the frame lifted for video each frame,
+// as Record and Go live capture it. It runs whether or not the panel streams.
+const ndi = {
+  built: false, available: false, on: false, pending: false, resume: false,
+  gamma: null, table: null, frame: null, label: '',
 };
 
 // A passing message, such as a Hotsave's, cleared after a few seconds.
@@ -381,6 +390,10 @@ function connect() {
       link.resume = false;
       startStreaming();
     }
+    if (ndi.resume) {
+      ndi.resume = false;
+      sendNdi(true);
+    }
   };
   socket.onclose = () => {
     link.open = false;
@@ -388,6 +401,10 @@ function connect() {
     if (link.streaming || link.pendingStart) {
       stopStreaming(false);
       link.resume = true;
+    }
+    if (ndi.on || ndi.pending) {
+      ndi.resume = true;
+      showNdi({ on: false });
     }
     $('connection').textContent = 'server: disconnected — retrying';
     $('connection').className = 'pill bad';
@@ -408,8 +425,88 @@ function connect() {
       }
     } else if (message.type === 'stats') {
       view.serverStats = message;
+      if (message.ndi && ndi.on) showNdi({ on: true, stats: message.ndi });
+    } else if (message.type === 'ndi') {
+      showNdi(message);
     }
   };
+}
+
+// ---------- NDI output (#62) ----------
+
+// The sizes offered follow the panel, as Go live's do; the one chosen is kept
+// when the panel's size still offers it, and saved.
+function fillNdiSizes(starting = false) {
+  const select = $('ndi-size'), was = starting ? settings.ndiSize : select.value;
+  const sizes = ndiSizes(settings.width, settings.height);
+  select.replaceChildren(...sizes.map((size) =>
+    new Option(`${size.width}×${size.height} (×${size.scale})`, String(size.scale))));
+  select.value = sizes.some((size) => String(size.scale) === was) ? was : String(defaultLiveSize(sizes).scale);
+  settings.ndiSize = select.value;
+}
+
+// Asks the relay to start the source, or to change its size or rate, or to stop it.
+function sendNdi(on) {
+  if (!link.open) {
+    showError('Composer server is not connected.');
+    return;
+  }
+  // Off at once, so no NDI frame follows the message to stop.
+  ndi.pending = on;
+  if (!on) ndi.on = false;
+  link.socket.send(JSON.stringify(on
+    ? { type: 'ndi', on: true, width: settings.width, height: settings.height, scale: Number(settings.ndiSize), fps: settings.fps }
+    : { type: 'ndi', on: false }));
+  showNdi({ on: ndi.on, pending: on });
+}
+
+// What the relay said: started (its name, size and address), stopped, failed,
+// or each second's figures while on.
+function showNdi({ on, pending = false, error, name, width, height, address, stats }) {
+  if (!pending) ndi.pending = false;
+  ndi.on = on;
+  if (on && name) ndi.label = `${name}, ${width}×${height}${address ? ` on ${address}` : ''}`;
+  const group = document.querySelector('.ndi-group');
+  group.dataset.state = error || stats?.error ? 'error' : on ? 'on' : 'off';
+  $('ndi').textContent = on ? 'NDI off' : 'NDI on';
+  $('ndi').disabled = !ndi.available || ndi.pending;
+  const receivers = stats ? ` · ${stats.connections} receiver${stats.connections === 1 ? '' : 's'}` : '';
+  $('ndi-status').textContent = error ? `NDI failed: ${error}`
+    : stats?.error ? `NDI: ${stats.error}`
+    : pending ? 'Starting NDI…' : on ? `NDI on: ${ndi.label}${receivers}` : 'NDI off';
+}
+
+// Each frame while on: the frame sent to the panel, lifted by Video gamma
+// into RGBA, which the relay tells from a DDP frame by its size. send()
+// copies the bytes, so the buffer is reused.
+function sendNdiFrame(frame) {
+  if (!ndi.on || !link.open || link.socket.bufferedAmount > frame.length * 4) return;
+  if (ndi.gamma !== settings.videoGamma) {
+    ndi.gamma = settings.videoGamma;
+    ndi.table = videoGammaTable(ndi.gamma);
+  }
+  const bytes = settings.width * settings.height * 4;
+  if (ndi.frame?.length !== bytes) ndi.frame = new Uint8Array(bytes);
+  link.socket.send(liftFrame(frame, ndi.table, ndi.frame));
+}
+
+// Whether this build has NDI and its runtime loaded: the controls are shown
+// only in an NDI build, and without the runtime they say how to get it.
+async function checkNdi() {
+  let status;
+  try {
+    status = await (await fetch('/api/ndi')).json();
+  } catch {
+    return;
+  }
+  ndi.built = Boolean(status.built);
+  ndi.available = Boolean(status.available);
+  document.querySelector('.ndi-group').hidden = !ndi.built;
+  if (!ndi.built) return;
+  $('ndi-runtime-link').hidden = ndi.available;
+  if (status.runtimeLink) $('ndi-runtime-link').href = status.runtimeLink;
+  showNdi({ on: false });
+  if (!ndi.available) $('ndi-status').textContent = status.reason || 'NDI is not available';
 }
 
 function updateStreamButton() {
@@ -534,9 +631,12 @@ function applyMatrixSize(width, height) {
   renderer.setSize(width, height);
   updateFlockControls();
   fillLiveSizes();
+  fillNdiSizes();
   saveSettings();
   if (wasStreaming)
     startStreaming();
+  if (ndi.on)
+    sendNdi(true);
 }
 
 // ---------- patterns ----------
@@ -1770,6 +1870,14 @@ function bindMatrixControls() {
       settings.liveCustom = { width: Number($('live-width').value), height: Number($('live-height').value) };
       saveSettings();
     });
+  fillNdiSizes(true);
+  $('ndi-size').addEventListener('change', () => {
+    settings.ndiSize = $('ndi-size').value;
+    saveSettings();
+    if (ndi.on) sendNdi(true);
+  });
+  $('ndi').addEventListener('click', () => sendNdi(!ndi.on));
+  checkNdi();
   if ([...$('recording-encoder').options].some((o) => o.value === settings.recordingEncoder))
     $('recording-encoder').value = settings.recordingEncoder;
   $('recording-encoder').addEventListener('change', () => {
@@ -1965,7 +2073,7 @@ function bindLookControls() {
   bindRange('gamma', 'gamma', (v) => v.toFixed(2), rememberReceiver);
   bindRange('speed', 'speed', (v) => `${v.toFixed(2)}×`);
   bindRange('hue', 'hue', (v) => `${Math.round(v * 360)}°`);
-  bindRange('fps', 'fps', (v) => `${v} fps`);
+  bindRange('fps', 'fps', (v) => `${v} fps`, () => { if (ndi.on) sendNdi(true); });
   bindRange('video-gamma', 'videoGamma', (v) => v.toFixed(2));
 }
 
@@ -2764,6 +2872,7 @@ function tick(now) {
     link.socket.send(frame);
     view.sent += 1;
   }
+  sendNdiFrame(frame);
 }
 
 // What the info overlay shows (see infoLines() in overlays.js).

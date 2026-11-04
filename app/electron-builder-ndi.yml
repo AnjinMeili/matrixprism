@@ -1,0 +1,18 @@
+# The NDI build (#62), never released: `npm --prefix ndi ci`, then
+# `npm run dist:mac:ndi` or `dist:win:ndi` (.github/workflows/ndi-build.yml
+# makes the Windows one). The plain build's settings, with NDI's Bonjour type
+# declared, since an NDI source advertises itself and macOS asks for a Local
+# Network permission naming it; its own folder and file names, so it is never
+# taken for a release. The release workflow builds with electron-builder.yml.
+extends: ./electron-builder.yml
+directories:
+  output: dist-ndi
+mac:
+  extendInfo:
+    NSBonjourServices:
+      - _ndi._tcp
+dmg:
+  title: MatrixPrism ${version} NDI
+  artifactName: ${productName}-${version}-ndi-${arch}.${ext}
+nsis:
+  artifactName: ${productName}-${version}-ndi-setup-${arch}.${ext}
